@@ -1,0 +1,88 @@
+import { splitWh } from './game/logic.js'
+
+/* Colores de rol del Grammar Hub (design-tokens): sujeto azul, verbo rojo grave,
+   wh teal. Clases literales para que Tailwind las encuentre. */
+export const ROLES = {
+  subject: {
+    label: 'Subject', text: 'text-blue-600', solid: 'bg-blue-600 border-blue-600',
+    tint: 'bg-blue-50', border: 'border-blue-600',
+  },
+  verb: {
+    label: 'Verb', text: 'text-red-700', solid: 'bg-red-700 border-red-700',
+    tint: 'bg-red-50', border: 'border-red-700',
+  },
+  wh: {
+    label: 'Information', text: 'text-teal-700', solid: 'bg-teal-700 border-teal-700',
+    tint: 'bg-teal-50', border: 'border-teal-700',
+  },
+}
+export const PART_KEYS = ['subject', 'verb', 'wh']
+
+export function Logo({ className = '' }) {
+  return (
+    <span className={`font-black tracking-tight ${className}`}>
+      Kach<span className="text-[#0F6FD6]">ai</span>
+    </span>
+  )
+}
+
+export function Center({ children }) {
+  return (
+    <div className="min-h-screen grid place-items-center p-6 text-center text-slate-600">
+      <div>{children}</div>
+    </div>
+  )
+}
+
+export function Button({ variant = 'primary', className = '', ...props }) {
+  const styles = {
+    primary: 'bg-[#0F6FD6] text-white hover:bg-[#0B5CB3] disabled:bg-slate-300',
+    ghost: 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 disabled:opacity-50',
+    danger: 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-50',
+  }
+  return (
+    <button
+      className={`rounded-xl px-5 py-3 font-bold transition active:scale-[.98] disabled:cursor-not-allowed ${styles[variant]} ${className}`}
+      {...props}
+    />
+  )
+}
+
+export function Prompt({ text, className = '' }) {
+  const [wh, rest] = splitWh(text)
+  return (
+    <p className={`font-extrabold text-slate-900 leading-tight ${className}`}>
+      <span className="text-teal-700">{wh}</span>
+      {rest}
+    </p>
+  )
+}
+
+export function TimerBar({ start, ms, now, className = '' }) {
+  const ready = typeof start === 'number'
+  const left = ready ? Math.max(0, start + ms - now) : ms
+  const pct = (left / ms) * 100
+  const urgent = left < 5000
+  return (
+    <div className={`flex items-center gap-3 ${className}`}>
+      <div className="h-3 flex-1 rounded-full bg-slate-200 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-[width] duration-200 ease-linear ${urgent ? 'bg-rose-500' : 'bg-[#0F6FD6]'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className={`tabular-nums font-black text-xl w-10 text-right ${urgent ? 'text-rose-600' : 'text-slate-700'}`}>
+        {Math.ceil(left / 1000)}
+      </span>
+    </div>
+  )
+}
+
+export function RoleTag({ part, className = '' }) {
+  const r = ROLES[part]
+  return (
+    <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white ${r.solid} ${className}`}>
+      {r.label}
+    </span>
+  )
+}

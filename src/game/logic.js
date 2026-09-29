@@ -1,0 +1,79 @@
+/* Qué tipo de información pide cada wh-word. El alumno no tiene el texto, así
+   que no puede dar el dato: solo puede decir QUÉ CLASE de dato va en la respuesta. */
+export const WH_TYPES = {
+  place: 'a place',
+  time: 'a time',
+  person: 'a person',
+  thing: 'a thing',
+  action: 'an action',
+  reason: 'a reason',
+  manner: 'a way / manner',
+  quantity: 'a quantity',
+  frequency: 'a frequency',
+  duration: 'a duration',
+}
+
+export const MAX_POINTS = 1000
+
+/* "María" = "maria" = " MARIA " · "She’s" = "she's". Así el modo escrito no
+   castiga tildes, mayúsculas ni espacios, solo la forma gramatical. */
+export function normalize(text) {
+  return String(text ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[‘’`]/g, "'")
+    .toLowerCase()
+    .replace(/[^a-z0-9' ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const matches = (accepted, given) => accepted.some((a) => normalize(a) === normalize(given))
+
+export function shuffle(list, rand = Math.random) {
+  const a = [...list]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+/* Lo que ven los celulares: opciones barajadas, SIN la solución. La barajada la
+   hace el profesor una vez, así todos ven el mismo orden. */
+export function buildPublicQuestion(q, rand = Math.random) {
+  const whOthers = shuffle(Object.keys(WH_TYPES).filter((k) => k !== q.wh), rand).slice(0, 3)
+  return {
+    prompt: q.prompt,
+    subjectOptions: shuffle([...q.subject.accept, ...q.subject.distractors], rand),
+    verbOptions: shuffle([...q.verb.accept, ...q.verb.distractors], rand),
+    whOptions: shuffle([q.wh, ...whOthers], rand),
+  }
+}
+
+export function solutionOf(q) {
+  return { subject: q.subject.accept, verb: q.verb.accept, wh: q.wh, example: q.example ?? null }
+}
+
+/* → [sujeto, verbo, wh] como booleanos */
+export function checkAnswer(q, answer) {
+  return [
+    matches(q.subject.accept, answer?.subject),
+    matches(q.verb.accept, answer?.verb),
+    answer?.wh === q.wh,
+  ]
+}
+
+/* Como Kahoot: cada parte correcta vale un tercio, y la rapidez multiplica entre
+   ×1 (al instante) y ×0,5 (en el último segundo). Todo correcto y rápido = 1000. */
+export function scoreFor(parts, elapsedMs, answerMs) {
+  const correct = parts.filter(Boolean).length
+  if (!correct) return 0
+  const t = Math.min(Math.max(elapsedMs, 0), answerMs) / answerMs
+  return Math.round((MAX_POINTS * correct / 3) * (1 - t / 2))
+}
+
+/* Separa la wh-word del resto para pintarla con su color de rol. */
+export function splitWh(prompt) {
+  const m = prompt.match(/^(how (many|much|often|long|far|old)|what time|what kind of|\w+)\b/i)
+  return m ? [m[0], prompt.slice(m[0].length)] : ['', prompt]
+}
