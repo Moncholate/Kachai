@@ -5,6 +5,7 @@ import { useNow, useStore, useValue } from '../net/hooks.js'
 import { SETS, getSet } from '../game/sets.js'
 import { WH_TYPES, buildPublicQuestion, checkAnswer, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, TimerBar } from '../ui.jsx'
+import { getSound } from './sound.js'
 
 /* El navegador del profesor es el "servidor" de la actividad: baraja, lleva el
    cronómetro, corrige y reparte puntos. La base de datos solo transporta. Todo el
@@ -142,6 +143,31 @@ function HostRoom({ store, pin }) {
     }
   })
 
+  /* Música por fase. Lectura y respuesta comparten tema, así que no se corta
+     entre ambas; revelar y ranking vuelven al tema tranquilo del lobby. */
+  const track = { lobby: 'lobby', reading: 'answering', answering: 'answering', reveal: 'lobby', leaderboard: 'lobby', end: 'podium' }[state?.phase] ?? null
+  useEffect(() => { getSound().play(track) }, [track])
+  useEffect(() => () => { getSound().play(null) }, [])
+
+  const secondsLeft = state?.phase === 'answering' && meta && typeof state.startedAt === 'number'
+    ? Math.ceil((state.startedAt + meta.answerSec * 1000 - now) / 1000)
+    : null
+  const lastTick = useRef(null)
+  useEffect(() => {
+    if (secondsLeft == null) { lastTick.current = null; return }
+    if (secondsLeft >= 1 && secondsLeft <= 5 && lastTick.current !== secondsLeft) {
+      lastTick.current = secondsLeft
+      getSound().tick(secondsLeft)
+    }
+  }, [secondsLeft])
+
+  const playerCount = Object.keys(players).length
+  const lastCount = useRef(null)
+  useEffect(() => {
+    if (lastCount.current != null && playerCount > lastCount.current) getSound().join()
+    lastCount.current = playerCount
+  }, [playerCount])
+
   if (meta === null) {
     return (
       <Center>
@@ -169,7 +195,8 @@ function HostRoom({ store, pin }) {
             MODO LOCAL · solo pestañas de este navegador
           </span>
         )}
-        <Button variant="danger" className="ml-auto !py-2 text-sm" onClick={closeRoom}>Cerrar sala</Button>
+        <SoundControl className="ml-auto" />
+        <Button variant="danger" className="!py-2 text-sm" onClick={closeRoom}>Cerrar sala</Button>
       </header>
 
       <main className="flex-1 w-full max-w-6xl mx-auto p-6">
@@ -309,6 +336,32 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
           Comenzar ▶
         </Button>
       </section>
+    </div>
+  )
+}
+
+function SoundControl({ className = '' }) {
+  const sound = getSound()
+  const [s, setS] = useState(sound.state)
+  useEffect(() => sound.subscribe(setS), [sound])
+
+  if (!s.running) {
+    return (
+      <button onClick={sound.unlock}
+        className={`rounded-full bg-amber-100 text-amber-900 font-bold text-sm px-4 py-2 animate-pulse ${className}`}>
+        🔈 Activar sonido
+      </button>
+    )
+  }
+  return (
+    <div className={`flex items-center gap-2 ${className}`}>
+      <button onClick={() => sound.setMuted(!s.muted)} title={s.muted ? 'Activar sonido' : 'Silenciar'}
+        className="w-9 h-9 rounded-full hover:bg-slate-100 text-xl">
+        {s.muted ? '🔇' : '🔊'}
+      </button>
+      <input type="range" min="0" max="1" step="0.05" value={s.volume} aria-label="Volumen"
+        disabled={s.muted} onChange={(e) => sound.setVolume(Number(e.target.value))}
+        className="w-24 accent-[#0F6FD6] disabled:opacity-40" />
     </div>
   )
 }

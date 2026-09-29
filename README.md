@@ -57,6 +57,22 @@ npm run dev
 Los alumnos entran escaneando el QR del proyector o con el PIN en
 `https://<tu-usuario>.github.io/<repo>/`.
 
+## Música
+
+Suena solo en la pantalla del profesor (`src/host/sound.js`); los celulares
+quedan en silencio. Los navegadores no dejan sonar nada hasta el primer clic
+en la página: el botón "Activar sonido" de la cabecera lo resuelve.
+
+| Fase | Archivo | |
+|---|---|---|
+| Sala, revelar, ranking | `public/audio/lobby.ogg` | loop |
+| Lectura y respuesta | `public/audio/answering.ogg` | loop + tics en los últimos 5 s |
+| Podio | `public/audio/podium.ogg` | una vez |
+
+Los loops están cortados en un compás y con un fundido cruzado hecho sobre el
+original, así que repiten sin salto. Los originales (`audio source/`) no se
+suben al repositorio.
+
 ## Agregar preguntas
 
 Edita `src/game/sets.js`. Cada pregunta define los sujetos y el verbo
