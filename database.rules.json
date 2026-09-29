@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "rooms": {
+      "$pin": {
+        ".read": "$pin.matches(/^[0-9]{6}$/)",
+        ".write": "!newData.exists()",
+        "meta": { ".write": true },
+        "state": { ".write": true },
+        "players": {
+          "$pid": {
+            ".write": true,
+            ".validate": "!newData.exists() || (newData.child('name').isString() && newData.child('name').val().length <= 16)"
+          }
+        },
+        "online": { ".write": true },
+        "scores": { ".write": true },
+        "answers": {
+          ".write": "!newData.exists()",
+          "$q": {
+            "$pid": {
+              ".write": "!data.exists()",
+              ".validate": "newData.child('at').val() === now"
+            }
+          }
+        }
+      }
+    }
+  }
+}
