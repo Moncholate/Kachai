@@ -6,6 +6,8 @@ import { SETS, getSet } from '../game/sets.js'
 import { WH_TYPES, buildPublicQuestion, checkAnswer, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, TimerBar } from '../ui.jsx'
 import { getSound } from './sound.js'
+import { podiumStage } from '../game/podium.js'
+import confetti from 'canvas-confetti'
 
 /* El navegador del profesor es el "servidor" de la actividad: baraja, lleva el
    cronómetro, corrige y reparte puntos. La base de datos solo transporta. Todo el
@@ -78,11 +80,12 @@ function HostRoom({ store, pin }) {
     })
   const start = () => goQuestion(0, (state.round || 0) + 1, { answers: null, scores: null })
   const startAnswering = () => store.update(`${base}/state`, { phase: 'answering', startedAt: store.stamp() })
+  const isLast = state?.qIndex + 1 >= set?.questions.length
   const showRanking = () => store.update(`${base}/state`, { phase: 'leaderboard' })
-  const next = () =>
-    state.qIndex + 1 < set.questions.length
-      ? goQuestion(state.qIndex + 1)
-      : store.update(`${base}/state`, { phase: 'end' })
+  /* Tras la última pregunta no hay ranking: se salta directo al podio, que se
+     revela por partes (ver game/podium.js) para mantener el suspenso. */
+  const showPodium = () => store.update(`${base}/state`, { phase: 'end', startedAt: store.stamp() })
+  const next = () => (isLast ? showPodium() : goQuestion(state.qIndex + 1))
   const backToLobby = () =>
     store.update(base, { answers: null, scores: null, state: { phase: 'lobby', round: state.round || 0 } })
   const kick = (id) => store.update(base, { [`players/${id}`]: null, [`scores/${id}`]: null, [`online/${id}`]: null })
@@ -145,9 +148,24 @@ function HostRoom({ store, pin }) {
 
   /* Música por fase. La lectura va en silencio para concentrarse; el tema de
      responder arranca con el cronómetro. Revelar y ranking tampoco llevan música. */
-  const track = { lobby: 'lobby', answering: 'answering', end: 'podium' }[state?.phase] ?? null
+  const stage = podiumStage(state?.phase === 'end' ? state.startedAt : null, now)
+  const track = state?.phase === 'end'
+    ? (stage.first ? 'podium' : null) // la fanfarria llega con el primer lugar
+    : ({ lobby: 'lobby', answering: 'answering' }[state?.phase] ?? null)
   useEffect(() => { getSound().play(track) }, [track])
   useEffect(() => () => { getSound().play(null) }, [])
+
+  /* Revelación del podio: cada paso suena una vez por ronda. */
+  const podiumStep = state?.phase !== 'end' ? null
+    : stage.first ? 'first' : stage.drumroll ? 'drumroll' : stage.second ? 'second' : stage.third ? 'third' : null
+  const lastStep = useRef(null)
+  useEffect(() => {
+    const key = podiumStep && `${state.round}-${podiumStep}`
+    if (!key || lastStep.current === key) return
+    lastStep.current = key
+    if (podiumStep === 'third' || podiumStep === 'second') getSound().place()
+    if (podiumStep === 'drumroll') getSound().effect('reveal')
+  }, [podiumStep])
 
   /* Un efecto al entrar en cada fase clave, una vez por pregunta. */
   const phaseEffect = { reading: 'question', reveal: 'reveal', leaderboard: 'ranking' }[state?.phase]
@@ -163,6 +181,8 @@ function HostRoom({ store, pin }) {
     ? Math.ceil((state.startedAt + meta.answerSec * 1000 - now) / 1000)
     : null
   const lastTick = useRef(null)
+  const countdown = secondsLeft != null && secondsLeft <= 5
+  useEffect(() => { getSound().duck(countdown) }, [countdown])
   useEffect(() => {
     if (secondsLeft == null) { lastTick.current = null; return }
     if (secondsLeft >= 1 && secondsLeft <= 5 && lastTick.current !== secondsLeft) {
@@ -246,7 +266,7 @@ function HostRoom({ store, pin }) {
         )}
 
         {state.phase === 'reveal' && state.solution && (
-          <Reveal state={state} onNext={showRanking} />
+          <Reveal state={state} isLast={isLast} onNext={isLast ? showPodium : showRanking} />
         )}
 
         {state.phase === 'leaderboard' && (
@@ -263,15 +283,13 @@ function HostRoom({ store, pin }) {
               ))}
             </ol>
             <div className="flex justify-center">
-              <Button onClick={next}>
-                {state.qIndex + 1 < state.total ? 'Siguiente pregunta →' : 'Resultados finales 🏆'}
-              </Button>
+              <Button onClick={next}>Siguiente pregunta →</Button>
             </div>
           </section>
         )}
 
         {state.phase === 'end' && (
-          <Podium ranking={ranking} onAgain={backToLobby} />
+          <Podium ranking={ranking} stage={stage} onAgain={backToLobby} />
         )}
       </main>
     </div>
@@ -398,7 +416,7 @@ function Segmented({ value, onChange, options }) {
   )
 }
 
-function Reveal({ state, onNext }) {
+function Reveal({ state, isLast, onNext }) {
   const { solution, stats } = state
   const pct = (k) => (stats.answered ? Math.round((stats[k] / stats.answered) * 100) : 0)
   const shown = {
@@ -428,32 +446,82 @@ function Reveal({ state, onNext }) {
       )}
       <p className="text-center text-slate-500">{stats.answered} answers</p>
       <div className="flex justify-center">
-        <Button onClick={onNext}>Ver ranking →</Button>
+        <Button onClick={onNext}>{isLast ? 'Ver podio 🏆' : 'Ver ranking →'}</Button>
       </div>
     </section>
   )
 }
 
-function Podium({ ranking, onAgain }) {
-  const [first, second, third] = ranking
-  const step = (p, place, h, medal) => p && (
-    <div className="flex flex-col items-center gap-2 w-40">
-      <span className="text-4xl">{medal}</span>
-      <span className="font-black text-xl text-center truncate w-full">{p.name}</span>
-      <span className="font-bold tabular-nums text-slate-600">{p.total}</span>
-      <div className={`w-full rounded-t-2xl bg-[#0F6FD6] text-white grid place-items-center text-4xl font-black ${h}`}>{place}</div>
-    </div>
-  )
-  return (
-    <section className="flex flex-col items-center gap-8 pt-4">
-      <h2 className="text-4xl font-black">Final results</h2>
-      <div className="flex items-end gap-4">
-        {step(second, 2, 'h-28', '🥈')}
-        {step(first, 1, 'h-40', '🥇')}
-        {step(third, 3, 'h-20', '🥉')}
+/* Fuegos artificiales de confeti durante unos segundos, desde varios puntos. */
+function celebrate() {
+  const opts = { disableForReducedMotion: true, zIndex: 50 }
+  const gold = ['#facc15', '#fde68a', '#f59e0b', '#ffffff']
+  confetti({ ...opts, particleCount: 160, spread: 100, startVelocity: 55, origin: { x: 0.5, y: 0.55 }, colors: gold })
+  const end = Date.now() + 4000
+  const id = setInterval(() => {
+    if (Date.now() > end) return clearInterval(id)
+    confetti({
+      ...opts, particleCount: 45, spread: 360, startVelocity: 30, ticks: 70, gravity: 0.8,
+      origin: { x: 0.15 + Math.random() * 0.7, y: 0.1 + Math.random() * 0.35 },
+    })
+  }, 350)
+  return () => { clearInterval(id); confetti.reset() }
+}
+
+const PLACES = {
+  1: { medal: '🥇', pedestal: 'h-56 bg-gradient-to-b from-yellow-300 to-amber-500 text-amber-900', width: 'w-60' },
+  2: { medal: '🥈', pedestal: 'h-40 bg-gradient-to-b from-slate-200 to-slate-400 text-slate-700', width: 'w-44' },
+  3: { medal: '🥉', pedestal: 'h-28 bg-gradient-to-b from-orange-300 to-orange-500 text-orange-900', width: 'w-44' },
+}
+
+function Podium({ ranking, stage, onAgain }) {
+  const shown = { 1: stage.first, 2: stage.second, 3: stage.third }
+
+  // Solo si el primero aparece ahora (no al recargar la página mucho después).
+  const celebrated = useRef(false)
+  useEffect(() => {
+    if (!stage.first || stage.rest || celebrated.current) return
+    celebrated.current = true
+    return celebrate()
+  }, [stage.first])
+
+  const column = (place) => {
+    const p = ranking[place - 1]
+    const style = PLACES[place]
+    const champion = place === 1
+    const waiting = !shown[place] && p
+    return (
+      <div className={`flex flex-col items-center justify-end gap-2 ${style.width}`}>
+        {p && shown[place] && (
+          <div className={`flex flex-col items-center gap-1 w-full ${champion ? 'animate-champion' : 'animate-rise'}`}>
+            {champion && <span className="text-5xl -mb-2">👑</span>}
+            <span className={champion ? 'text-7xl' : 'text-5xl'}>{style.medal}</span>
+            <span className={`font-black text-center truncate w-full ${champion ? 'text-4xl' : 'text-2xl'}`}>{p.name}</span>
+            <span className={`font-bold tabular-nums text-slate-600 ${champion ? 'text-2xl' : 'text-lg'}`}>{p.total} pts</span>
+          </div>
+        )}
+        <div className={`w-full rounded-t-3xl grid place-items-center font-black shadow-lg ${style.pedestal}
+          ${champion && shown[1] ? 'animate-glow' : ''}`}>
+          <span className={`text-6xl ${waiting ? 'animate-pulse opacity-60' : ''}`}>
+            {waiting ? '?' : place}
+          </span>
+        </div>
       </div>
-      {ranking.length > 3 && (
-        <ol start={4} className="w-full max-w-xl flex flex-col gap-1">
+    )
+  }
+
+  return (
+    <section className="flex flex-col items-center gap-8 pt-2">
+      <h2 className="text-4xl font-black">
+        {stage.first ? '🎉 And the winner is… 🎉' : stage.drumroll ? 'And the winner is…' : 'Final results'}
+      </h2>
+      <div className="flex items-end gap-3 min-h-[26rem]">
+        {column(2)}
+        {column(1)}
+        {column(3)}
+      </div>
+      {stage.rest && ranking.length > 3 && (
+        <ol start={4} className="w-full max-w-xl flex flex-col gap-1 animate-rise">
           {ranking.slice(3).map((p, i) => (
             <li key={p.id} className="flex gap-4 rounded-xl bg-white border border-slate-200 px-4 py-2">
               <span className="w-6 text-slate-400 font-bold">{i + 4}</span>
@@ -463,7 +531,7 @@ function Podium({ ranking, onAgain }) {
           ))}
         </ol>
       )}
-      <Button onClick={onAgain}>Jugar otra vez</Button>
+      {stage.rest && <Button onClick={onAgain} className="animate-rise">Jugar otra vez</Button>}
     </section>
   )
 }

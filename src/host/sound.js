@@ -17,6 +17,7 @@ const EFFECTS = {
   ranking: 'ranking.ogg', // aparece el ranking
 }
 const MUSIC_LEVEL = 0.8 // deja aire a los efectos por encima de la música
+const DUCKED_LEVEL = 0.25 // últimos segundos: la música se aparta para que se oigan los tics
 const FADE_IN = 0.4
 const FADE_OUT = 0.6
 
@@ -123,13 +124,29 @@ function createSoundEngine() {
     play,
     effect,
     unlock,
-    /* Últimos segundos: un tic por segundo, y doble (más agudo) en los últimos 3. */
+    /* Últimos segundos: un tic por segundo, y doble (más agudo) en los últimos 3.
+       Dos osciladores a una octava: el agudo corta a través de la música. */
     tick(secondsLeft) {
       if (ctx.state !== 'running') return
-      const t = ctx.currentTime
       const freq = secondsLeft <= 3 ? 1320 : 990
-      blip(freq, t)
-      if (secondsLeft <= 3) blip(freq, t + 0.5)
+      const hit = (at) => {
+        blip(freq, at, { dur: 0.09, type: 'square', level: 0.45 })
+        blip(freq * 2, at, { dur: 0.06, type: 'triangle', level: 0.3 })
+      }
+      hit(ctx.currentTime)
+      if (secondsLeft <= 3) hit(ctx.currentTime + 0.5)
+    },
+    /* Baja la música (sin detenerla) mientras dura la cuenta regresiva. */
+    duck(on) {
+      music.gain.setTargetAtTime(on ? DUCKED_LEVEL : MUSIC_LEVEL, ctx.currentTime, 0.15)
+    },
+    /* Aparece un puesto del podio (3.º y 2.º): golpe grave y campanada. */
+    place() {
+      if (ctx.state !== 'running') return
+      const t = ctx.currentTime
+      blip(130, t, { dur: 0.35, type: 'triangle', level: 0.6 })
+      blip(784, t, { dur: 0.25, type: 'square', level: 0.2 })
+      blip(1175, t + 0.08, { dur: 0.35, type: 'square', level: 0.18 })
     },
     /* Alguien entró a la sala. */
     join() {

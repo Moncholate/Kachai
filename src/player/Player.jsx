@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNow, useStore, useValue } from '../net/hooks.js'
 import { WH_TYPES, normalize } from '../game/logic.js'
+import { podiumStage } from '../game/podium.js'
+import confetti from 'canvas-confetti'
 import { Button, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, TimerBar } from '../ui.jsx'
 
 /* sessionStorage y no localStorage: cada pestaña es un jugador distinto (útil
@@ -160,12 +162,10 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       </Message>
     )
   } else if (state.phase === 'end') {
-    const medal = ['🥇', '🥈', '🥉'][score?.rank - 1] || '🎉'
-    body = (
-      <Message emoji={medal} title={score?.rank ? `Final position: #${score.rank}` : 'Game over'}>
-        {score?.total ?? 0} points. Well done!
-      </Message>
-    )
+    // Mismo guion que el proyector: el puesto no se ve aquí antes que en la pantalla.
+    body = podiumStage(state.startedAt, now).rest
+      ? <FinalPosition score={score} />
+      : <Message emoji="👀" title="Look at the screen!">The podium is being revealed…</Message>
   }
 
   return (
@@ -179,6 +179,20 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       </header>
       <main className="flex-1 w-full max-w-md mx-auto p-4">{body}</main>
     </div>
+  )
+}
+
+function FinalPosition({ score }) {
+  const rank = score?.rank
+  useEffect(() => {
+    if (!rank || rank > 3) return
+    confetti({ particleCount: rank === 1 ? 180 : 80, spread: 90, origin: { y: 0.6 }, disableForReducedMotion: true })
+  }, [rank])
+  const medal = ['🥇', '🥈', '🥉'][rank - 1] || '🎉'
+  return (
+    <Message emoji={medal} title={rank ? `Final position: #${rank}` : 'Game over'}>
+      {score?.total ?? 0} points. {rank === 1 ? 'You are the champion! 👑' : 'Well done!'}
+    </Message>
   )
 }
 
