@@ -65,9 +65,13 @@ en la página: el botón "Activar sonido" de la cabecera lo resuelve.
 
 | Fase | Archivo | |
 |---|---|---|
-| Sala, revelar, ranking | `public/audio/lobby.ogg` | loop |
-| Lectura y respuesta | `public/audio/answering.ogg` | loop + tics en los últimos 5 s |
+| Sala de espera | `public/audio/lobby.ogg` | loop |
+| Respuesta (tras la lectura) | `public/audio/answering.ogg` | loop + tics en los últimos 5 s |
 | Podio | `public/audio/podium.ogg` | una vez |
+
+Efectos (una vez, sin música de fondo): `question.ogg` al aparecer la pregunta,
+`reveal.ogg` al acabarse el tiempo y `ranking.ogg` al mostrar el ranking. El
+"plin" de entrada y los tics se sintetizan en `sound.js`.
 
 Los loops están cortados en un compás y con un fundido cruzado hecho sobre el
 original, así que repiten sin salto. Los originales (`audio source/`) no se

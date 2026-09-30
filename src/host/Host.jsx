@@ -143,11 +143,21 @@ function HostRoom({ store, pin }) {
     }
   })
 
-  /* Música por fase. Lectura y respuesta comparten tema, así que no se corta
-     entre ambas; revelar y ranking vuelven al tema tranquilo del lobby. */
-  const track = { lobby: 'lobby', reading: 'answering', answering: 'answering', reveal: 'lobby', leaderboard: 'lobby', end: 'podium' }[state?.phase] ?? null
+  /* Música por fase. La lectura va en silencio para concentrarse; el tema de
+     responder arranca con el cronómetro. Revelar y ranking tampoco llevan música. */
+  const track = { lobby: 'lobby', answering: 'answering', end: 'podium' }[state?.phase] ?? null
   useEffect(() => { getSound().play(track) }, [track])
   useEffect(() => () => { getSound().play(null) }, [])
+
+  /* Un efecto al entrar en cada fase clave, una vez por pregunta. */
+  const phaseEffect = { reading: 'question', reveal: 'reveal', leaderboard: 'ranking' }[state?.phase]
+  const phaseKey = state ? `${state.round}-${state.qIndex}-${state.phase}` : null
+  const lastEffect = useRef(null)
+  useEffect(() => {
+    if (!phaseEffect || lastEffect.current === phaseKey) return
+    lastEffect.current = phaseKey
+    getSound().effect(phaseEffect)
+  }, [phaseKey, phaseEffect])
 
   const secondsLeft = state?.phase === 'answering' && meta && typeof state.startedAt === 'number'
     ? Math.ceil((state.startedAt + meta.answerSec * 1000 - now) / 1000)

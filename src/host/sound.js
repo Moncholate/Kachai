@@ -10,6 +10,12 @@ const TRACKS = {
   answering: { file: 'answering.ogg', loop: true },
   podium: { file: 'podium.ogg', loop: false },
 }
+/* Efectos de Suno, cortos y de una sola vez: van directo al master, sin fundidos. */
+const EFFECTS = {
+  question: 'question.ogg', // aparece la pregunta (empieza la lectura)
+  reveal: 'reveal.ogg', // se acaba el tiempo: redoble y respuesta
+  ranking: 'ranking.ogg', // aparece el ranking
+}
 const MUSIC_LEVEL = 0.8 // deja aire a los efectos por encima de la música
 const FADE_IN = 0.4
 const FADE_OUT = 0.6
@@ -48,12 +54,14 @@ function createSoundEngine() {
 
   const loading = {}
   const load = (name) => {
-    loading[name] ??= fetch(`${import.meta.env.BASE_URL}audio/${TRACKS[name].file}`)
+    const file = TRACKS[name]?.file ?? EFFECTS[name]
+    loading[name] ??= fetch(`${import.meta.env.BASE_URL}audio/${file}`)
       .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.arrayBuffer() })
       .then((data) => ctx.decodeAudioData(data))
     return loading[name]
   }
-  Object.keys(TRACKS).forEach((name) => load(name).catch((e) => console.warn(`Kachai: no se pudo cargar ${name}`, e)))
+  ;[...Object.keys(TRACKS), ...Object.keys(EFFECTS)]
+    .forEach((name) => load(name).catch((e) => console.warn(`Kachai: no se pudo cargar ${name}`, e)))
 
   let current = null // { name, src, gain }
   let wanted = null
@@ -101,8 +109,19 @@ function createSoundEngine() {
     osc.stop(at + dur + 0.02)
   }
 
+  async function effect(name) {
+    if (ctx.state !== 'running') return
+    let buffer
+    try { buffer = await load(name) } catch { return }
+    const src = ctx.createBufferSource()
+    src.buffer = buffer
+    src.connect(master)
+    src.start()
+  }
+
   return {
     play,
+    effect,
     unlock,
     /* Últimos segundos: un tic por segundo, y doble (más agudo) en los últimos 3. */
     tick(secondsLeft) {
