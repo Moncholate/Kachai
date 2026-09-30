@@ -474,6 +474,22 @@ const PLACES = {
   3: { medal: '🥉', pedestal: 'h-28 bg-gradient-to-b from-orange-300 to-orange-500 text-orange-900', width: 'w-44' },
 }
 
+function CountUp({ to, ms = 1200 }) {
+  const [value, setValue] = useState(0)
+  useEffect(() => {
+    const start = performance.now()
+    let frame
+    const step = (t) => {
+      const k = Math.min(1, (t - start) / ms)
+      setValue(Math.round(to * (1 - (1 - k) ** 3))) // frena al llegar
+      if (k < 1) frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [to, ms])
+  return value
+}
+
 function Podium({ ranking, stage, onAgain }) {
   const shown = { 1: stage.first, 2: stage.second, 3: stage.third }
 
@@ -497,7 +513,12 @@ function Podium({ ranking, stage, onAgain }) {
             {champion && <span className="text-5xl -mb-2">👑</span>}
             <span className={champion ? 'text-7xl' : 'text-5xl'}>{style.medal}</span>
             <span className={`font-black text-center truncate w-full ${champion ? 'text-4xl' : 'text-2xl'}`}>{p.name}</span>
-            <span className={`font-bold tabular-nums text-slate-600 ${champion ? 'text-2xl' : 'text-lg'}`}>{p.total} pts</span>
+            {/* Los puntos llegan al final, todos a la vez, para comparar las
+                distancias sin adelantar quién ganó. El espacio queda reservado. */}
+            <span className={`font-bold tabular-nums text-slate-600 ${champion ? 'text-2xl' : 'text-lg'}
+              ${stage.rest ? 'animate-rise' : 'invisible'}`}>
+              {stage.rest ? <CountUp to={p.total} /> : 0} pts
+            </span>
           </div>
         )}
         <div className={`w-full rounded-t-3xl grid place-items-center font-black shadow-lg ${style.pedestal}

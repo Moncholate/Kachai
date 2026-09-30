@@ -120,6 +120,10 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
   const submit = (a) => store.set(`${base}/answers/${state.qIndex}/${pid}`, { ...a, at: store.stamp() })
   const answerMs = meta.answerSec * 1000
   const timeUp = typeof state.startedAt === 'number' && now >= state.startedAt + answerMs
+  /* Suspenso: desde la última pregunta hasta que el podio termina de revelarse,
+     nadie ve su total (compararlo con el de un compañero delataría el orden). */
+  const lastQuestion = ['reading', 'answering', 'reveal'].includes(state.phase) && state.qIndex + 1 >= state.total
+  const secretScore = lastQuestion || (state.phase === 'end' && !podiumStage(state.startedAt, now).rest)
 
   let body
   if (state.phase === 'lobby') {
@@ -154,7 +158,7 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       )
     }
   } else if (state.phase === 'reveal' && state.solution) {
-    body = <Result solution={state.solution} answer={myAnswer} score={score} />
+    body = <Result solution={state.solution} answer={myAnswer} score={score} secret={secretScore} />
   } else if (state.phase === 'leaderboard') {
     body = (
       <Message emoji="📊" title={score?.rank ? `You are #${score.rank}` : 'Ranking'}>
@@ -173,8 +177,9 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200">
         <Logo className="text-xl" />
         <span className="flex-1 font-bold truncate text-right">{profile.name}</span>
-        <span className="rounded-full bg-slate-900 text-white px-3 py-1 text-sm font-black tabular-nums">
-          {score?.total ?? 0}
+        <span className="rounded-full bg-slate-900 text-white px-3 py-1 text-sm font-black tabular-nums"
+          title={secretScore ? 'Secret until the podium' : undefined}>
+          {secretScore ? '🤫' : score?.total ?? 0}
         </span>
       </header>
       <main className="flex-1 w-full max-w-md mx-auto p-4">{body}</main>
@@ -287,14 +292,16 @@ function MyChoices({ answer }) {
   )
 }
 
-function Result({ solution, answer, score }) {
+function Result({ solution, answer, score, secret }) {
   const parts = score?.parts || [false, false, false]
   const correct = { subject: solution.subject.join(' / '), verb: solution.verb.join(' / '), wh: WH_TYPES[solution.wh] }
   return (
     <div className="flex flex-col gap-4 pt-4">
       <div className="text-center">
         <p className="text-5xl">{!answer ? '😶' : parts.every(Boolean) ? '🎉' : parts.some(Boolean) ? '👍' : '💪'}</p>
-        <p className="text-3xl font-black mt-2">+{score?.gain ?? 0}</p>
+        {secret
+          ? <p className="text-lg font-bold mt-2 text-slate-600">Points are secret until the podium 🤫</p>
+          : <p className="text-3xl font-black mt-2">+{score?.gain ?? 0}</p>}
         {!answer && <p className="text-slate-500">No answer this time.</p>}
       </div>
       {PART_KEYS.map((k, i) => (
