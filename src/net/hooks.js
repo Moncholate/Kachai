@@ -18,6 +18,13 @@ export function useValue(store, path) {
   return value
 }
 
+/* Sesión del docente: undefined = comprobando · null = sin sesión. */
+export function useUser(store) {
+  const [user, setUser] = useState(undefined)
+  useEffect(() => (store ? store.onUser(setUser) : undefined), [store])
+  return user
+}
+
 export function useNow(store, ms = 200) {
   const [now, setNow] = useState(() => (store ? store.now() : Date.now()))
   useEffect(() => {

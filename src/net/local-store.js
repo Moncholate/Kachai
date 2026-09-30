@@ -68,6 +68,14 @@ export function createLocalStore() {
       }, 0)
       return () => listeners.delete(l)
     },
+    /* Sin Firebase no hay cuentas: el navegador es "el docente" y su biblioteca
+       vive en localStorage junto al resto. */
+    onUser(cb) {
+      setTimeout(() => cb({ uid: 'local', name: 'Modo local', photo: null }), 0)
+      return () => {}
+    },
+    signIn: async () => ({ uid: 'local', name: 'Modo local', photo: null }),
+    signOut: async () => {},
     now: () => Date.now(),
     stamp: () => Date.now(),
     presence(path) {

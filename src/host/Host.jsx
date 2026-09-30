@@ -1,11 +1,13 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
-import { useNow, useStore, useValue } from '../net/hooks.js'
+import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
 import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, eaOf, getSet, sameTypeIn } from '../game/sets.js'
 import { WH_TYPES, buildPublicQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
 import { getSound } from './sound.js'
+import Editor from './Editor.jsx'
+import { applyLibrary, libraryPath } from '../game/library.js'
 import { podiumStage } from '../game/podium.js'
 import {
   MAX_TEAMS, TEAM_MAX, TEAM_MIN, makeTeams, membersOf, mvpOf, presetOf, shuffleIntoTeams, smallestTeam,
@@ -68,8 +70,12 @@ function HostRoom({ store, pin }) {
   const answers = useValue(store, inGame ? `${base}/answers/${state.qIndex}` : null) || {}
   const now = useNow(store)
   const fired = useRef('')
+  const user = useUser(store)
+  /* Biblioteca personal: sus versiones editadas reemplazan a las originales. */
+  const library = useValue(store, user ? libraryPath(user.uid) : null) || {}
+  const [editing, setEditing] = useState(null)
 
-  const set = meta ? getSet(meta.setId) : null
+  const set = meta ? applyLibrary(getSet(meta.setId), library[meta.setId]) : null
   /* La pregunta de práctica va con qIndex -1: así sus respuestas quedan aparte y
      "Pregunta N / total" sigue contando solo las reales. */
   const questionAt = (i) => (i < 0 ? set.practice : set.questions[i])
@@ -276,13 +282,19 @@ function HostRoom({ store, pin }) {
           </span>
         )}
         <SoundControl className="ml-auto" />
+        {isOnline && <Account store={store} user={user} />}
         <Button variant="danger" className="!py-2 text-sm" onClick={closeRoom}>Cerrar sala</Button>
       </header>
 
       <main className="flex-1 w-full max-w-6xl mx-auto p-6">
-        {state.phase === 'lobby' && (
+        {state.phase === 'lobby' && editing && user && (
+          <Editor store={store} user={user} base={getSet(editing)} custom={library[editing] && applyLibrary(getSet(editing), library[editing])}
+            onClose={() => setEditing(null)} />
+        )}
+        {state.phase === 'lobby' && !editing && (
           <Lobby store={store} base={base} pin={pin} meta={meta} players={players} online={online}
-            onKick={kick} onStart={start} />
+            library={library} onKick={kick} onStart={start}
+            onEdit={async (id) => { if (user || (await signInFriendly(store))) setEditing(id) }} />
         )}
 
         {(state.phase === 'reading' || state.phase === 'answering') && (
@@ -378,7 +390,7 @@ function HostRoom({ store, pin }) {
   )
 }
 
-function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
+function Lobby({ store, base, pin, meta, players, online, library, onKick, onStart, onEdit }) {
   const joinUrl = `${location.origin}${location.pathname}#/play?pin=${pin}`
   const [qr, setQr] = useState('')
   useEffect(() => {
@@ -387,6 +399,8 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
 
   const setMeta = (patch) => store.update(`${base}/meta`, patch)
   const set = getSet(meta.setId)
+  const count = (a) => applyLibrary(a, library[a.id]).questions.length
+  const mine = (a) => Boolean(library[a.id])
   const course = courseOf(set)
   const ea = eaOf(set)
   const eaIndex = course.eas.indexOf(ea)
@@ -441,8 +455,9 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
                 <button key={a.id} onClick={() => setMeta({ setId: a.id })}
                   className={`rounded-xl border-2 p-3 text-left transition ${set.id === a.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
                   <span className="block font-bold">
-                    {a.title} <span className="font-normal text-slate-500">· {a.questions.length} preguntas</span>
+                    {a.title} <span className="font-normal text-slate-500">· {count(a)} preguntas</span>
                   </span>
+                  {mine(a) && <MineBadge />}
                   <span className="block text-xs text-slate-500">{ACTIVITY_TYPES[a.type].description}</span>
                 </button>
               ))}
@@ -458,12 +473,16 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
                   {focusList.map((a) => (
                     <button key={a.id} onClick={() => setMeta({ setId: a.id })}
                       className={`rounded-full border px-3 py-1 text-sm font-bold transition ${set.id === a.id ? 'bg-[#0F6FD6] border-[#0F6FD6] text-white' : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'}`}>
-                      {a.topic}
+                      {a.topic}{mine(a) && ' ✏️'}
                     </button>
                   ))}
                 </div>
               </div>
             )}
+            <button onClick={() => onEdit(set.id)}
+              className="mt-2 text-sm font-bold text-[#0F6FD6] hover:underline">
+              ✏️ Editar “{set.topic ?? set.title}”{mine(set) ? ' (tu versión)' : ''}
+            </button>
           </Field>
           {set.practice && (
             <Field label="Pregunta de práctica al inicio (no suma puntos)">
@@ -607,6 +626,50 @@ function TeamsPanel({ store, base, meta, players, online, onKick }) {
         )}
       </div>
     </div>
+  )
+}
+
+function MineBadge() {
+  return (
+    <span className="inline-block mt-1 rounded-md bg-amber-100 text-amber-800 text-[11px] font-bold uppercase tracking-wide px-2 py-0.5">
+      ✏️ Tu versión
+    </span>
+  )
+}
+
+/* El inicio de sesión solo hace falta para editar. Los errores de configuración
+   de Firebase se traducen a lo que el docente tiene que hacer. */
+async function signInFriendly(store) {
+  try {
+    return await store.signIn()
+  } catch (e) {
+    const why = {
+      'auth/popup-closed-by-user': null,
+      'auth/cancelled-popup-request': null,
+      'auth/popup-blocked': 'El navegador bloqueó la ventana de Google. Permite las ventanas emergentes para este sitio.',
+      'auth/operation-not-allowed': 'Falta activar el inicio de sesión con Google en la consola de Firebase.',
+      'auth/unauthorized-domain': 'Falta autorizar este dominio en la consola de Firebase (Authentication → Settings).',
+    }[e.code]
+    if (why !== null) alert(why ?? `No se pudo iniciar sesión: ${e.message}`)
+    return null
+  }
+}
+
+function Account({ store, user }) {
+  if (user === undefined) return null
+  if (!user) {
+    return (
+      <Button variant="ghost" className="!py-2 text-sm" onClick={() => signInFriendly(store)}>
+        Iniciar sesión con Google
+      </Button>
+    )
+  }
+  return (
+    <span className="flex items-center gap-2 text-sm">
+      {user.photo && <img src={user.photo} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full" />}
+      <span className="font-bold max-w-[10rem] truncate">{user.name}</span>
+      <button onClick={() => store.signOut()} className="text-slate-500 hover:underline">Salir</button>
+    </span>
   )
 }
 

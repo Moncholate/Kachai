@@ -1,5 +1,11 @@
 {
   "rules": {
+    "libraries": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
     "rooms": {
       "$pin": {
         ".read": "$pin.matches(/^[0-9]{6}$/)",

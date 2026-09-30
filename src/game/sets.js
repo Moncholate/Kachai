@@ -840,7 +840,7 @@ export const COURSES = RAW.map((c) => ({
   ...c,
   eas: c.eas.map(([files, topics, builder, exam], i) => {
     const ea = `EA${i + 1}`
-    const base = { ea, course: c.id, files, topics }
+    const base = { ea, course: c.id, courseName: c.name, files, topics }
     return {
       ea, files, topics,
       activities: [
