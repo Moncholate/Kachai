@@ -7,6 +7,10 @@ import { WH_TYPES, buildPublicQuestion, checkAnswer, nextStreak, scoreFor, solut
 import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
 import { getSound } from './sound.js'
 import { podiumStage } from '../game/podium.js'
+import {
+  MAX_TEAMS, TEAM_MAX, TEAM_MIN, makeTeams, membersOf, mvpOf, presetOf, shuffleIntoTeams, smallestTeam,
+  suggestTeamCount, teamIdsOf, teamRanking,
+} from '../game/teams.js'
 import confetti from 'canvas-confetti'
 
 /* El navegador del profesor es el "servidor" de la actividad: baraja, lleva el
@@ -70,6 +74,22 @@ function HostRoom({ store, pin }) {
      "Pregunta N / total" sigue contando solo las reales. */
   const questionAt = (i) => (i < 0 ? set.practice : set.questions[i])
   const activeIds = Object.keys(players).filter((id) => online[id] !== false)
+  const teamMode = meta?.teamMode === 'teams'
+  const teams = meta?.teams || {}
+  const teamIds = teamIdsOf(teams)
+
+  /* Quien no tiene equipo (no eligió, o llegó tarde) va al más pequeño. */
+  const fillTeams = () => {
+    if (!teamMode || !teamIds.length) return {}
+    const draft = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { ...p }]))
+    const patch = {}
+    for (const id of Object.keys(draft)) {
+      if (teams[draft[id].team]) continue
+      draft[id].team = smallestTeam(teamIds, draft)
+      patch[`players/${id}/team`] = draft[id].team
+    }
+    return patch
+  }
   const answeredCount = Object.keys(answers).filter((id) => players[id]).length
 
   const goQuestion = (i, round = state.round, extra = {}) =>
@@ -81,7 +101,7 @@ function HostRoom({ store, pin }) {
       },
     })
   const withPractice = meta?.practice !== false && Boolean(set?.practice)
-  const start = () => goQuestion(withPractice ? -1 : 0, (state.round || 0) + 1, { answers: null, scores: null })
+  const start = () => goQuestion(withPractice ? -1 : 0, (state.round || 0) + 1, { answers: null, scores: null, ...fillTeams() })
   /* Tras el simulacro todos vuelven a 0: sus puntos solo se mostraron. */
   const startForReal = () => goQuestion(0, state.round, { answers: null, scores: null })
   const startAnswering = () => store.update(`${base}/state`, { phase: 'answering', startedAt: store.stamp() })
@@ -145,6 +165,14 @@ function HostRoom({ store, pin }) {
       state: { ...state, phase: 'reveal', solution: solutionOf(q), stats },
     })
   }
+
+  /* Atrasados en pleno juego: se suman al equipo más pequeño apenas entran. */
+  const unassigned = teamMode && inGame && Object.values(players).some((p) => !teams[p.team])
+  useEffect(() => {
+    if (!unassigned) return
+    const patch = fillTeams()
+    if (Object.keys(patch).length) store.update(base, patch)
+  }, [unassigned, players])
 
   /* Avances automáticos: lectura → respuesta → revelar (al acabar el tiempo o
      cuando respondieron todos los conectados). Cada fase dispara una sola vez. */
@@ -231,6 +259,7 @@ function HostRoom({ store, pin }) {
     .filter(([id]) => players[id])
     .map(([id, s]) => ({ id, name: players[id].name, ...s }))
     .sort((a, b) => b.total - a.total)
+  const teamRank = teamMode ? teamRanking(teams, players, scores) : null
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -297,7 +326,29 @@ function HostRoom({ store, pin }) {
             onNext={state.practice ? startForReal : isLast ? showPodium : showRanking} />
         )}
 
-        {state.phase === 'leaderboard' && (
+        {state.phase === 'leaderboard' && teamMode && (
+          <section className="max-w-3xl mx-auto flex flex-col gap-6">
+            <h2 className="text-4xl font-black text-center">Team ranking</h2>
+            <ol className="flex flex-col gap-2">
+              {teamRank.map((t, i) => (
+                <li key={t.id} className={`flex items-center gap-4 rounded-2xl border-2 px-5 py-3 text-xl ${presetOf(t.id).tint} ${presetOf(t.id).border}`}>
+                  <span className="w-8 font-black text-slate-400">{i + 1}</span>
+                  <span className="flex-1 min-w-0 font-bold truncate">
+                    {t.name} <span className="text-base font-normal text-slate-500">· {t.members.length}</span>
+                  </span>
+                  {t.gain > 0 && <span className="text-green-600 font-bold">+{t.gain}</span>}
+                  <span className="w-24 text-right font-black tabular-nums">{t.total}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-center text-slate-500">Team points = the average of its players</p>
+            <div className="flex justify-center">
+              <Button onClick={next}>Siguiente pregunta →</Button>
+            </div>
+          </section>
+        )}
+
+        {state.phase === 'leaderboard' && !teamMode && (
           <section className="max-w-3xl mx-auto flex flex-col gap-6">
             <h2 className="text-4xl font-black text-center">Ranking</h2>
             <ol className="flex flex-col gap-2">
@@ -320,7 +371,7 @@ function HostRoom({ store, pin }) {
         )}
 
         {state.phase === 'end' && (
-          <Podium ranking={ranking} stage={stage} onAgain={backToLobby} />
+          <Podium ranking={teamRank ?? ranking} mvp={teamMode ? mvpOf(players, scores) : null} stage={stage} onAgain={backToLobby} />
         )}
       </main>
     </div>
@@ -340,6 +391,10 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
   const ea = eaOf(set)
   const eaIndex = course.eas.indexOf(ea)
   const focusList = ea.activities.filter((a) => a.type === 'grammar-focus')
+  const teamMode = meta.teamMode === 'teams'
+  const setTeamMode = (mode) => setMeta(mode === 'teams' && !meta.teams
+    ? { teamMode: mode, teamPick: meta.teamPick || 'random', teams: makeTeams(suggestTeamCount(Object.keys(players).length)) }
+    : { teamMode: mode })
   const list = Object.entries(players).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0))
 
   return (
@@ -422,6 +477,10 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
                 options={[['select', 'Elegir de una lista'], ['write', 'Escribirlos']]} />
             </Field>
           )}
+          <Field label="Modo de juego">
+            <Segmented value={teamMode ? 'teams' : 'solo'} onChange={setTeamMode}
+              options={[['solo', 'Individual'], ['teams', 'Equipos']]} />
+          </Field>
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Tiempo de lectura">
               <Segmented value={meta.readSec} onChange={(readSec) => setMeta({ readSec })}
@@ -434,7 +493,8 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
           </div>
         </div>
 
-        <div className="rounded-3xl bg-white border border-slate-200 p-5 flex-1">
+        {teamMode && <TeamsPanel store={store} base={base} meta={meta} players={players} online={online} onKick={onKick} />}
+        <div className={`rounded-3xl bg-white border border-slate-200 p-5 flex-1 ${teamMode ? 'hidden' : ''}`}>
           <p className="font-bold mb-3">Alumnos ({list.length})</p>
           {list.length === 0 && <p className="text-slate-400">Esperando que se unan…</p>}
           <ul className="flex flex-wrap gap-2">
@@ -453,6 +513,99 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
           Comenzar ▶
         </Button>
       </section>
+    </div>
+  )
+}
+
+/* Armado de equipos en el lobby: al azar (el profesor reparte) o que elijan en
+   el celular. Todo queda editable: nombres, cantidad y quién va dónde. */
+function TeamsPanel({ store, base, meta, players, online, onKick }) {
+  const teams = meta.teams || {}
+  const ids = teamIdsOf(teams)
+  const pick = meta.teamPick || 'random'
+  const everyone = Object.keys(players).sort((a, b) => (players[a].joinedAt || 0) - (players[b].joinedAt || 0))
+  const unassigned = everyone.filter((id) => !teams[players[id].team])
+
+  const setCount = (n) => {
+    const next = makeTeams(n, teams)
+    const patch = { 'meta/teams': next }
+    // quien estaba en un equipo que desaparece queda sin equipo
+    for (const id of everyone) if (players[id].team && !next[players[id].team]) patch[`players/${id}/team`] = null
+    store.update(base, patch)
+  }
+  const shuffle = () => {
+    const assigned = shuffleIntoTeams(everyone, ids)
+    store.update(base, Object.fromEntries(Object.entries(assigned).map(([id, t]) => [`players/${id}/team`, t])))
+  }
+  const move = (id, team) => store.update(`${base}/players/${id}`, { team: team || null })
+  const rename = (team, name) => {
+    const clean = name.trim().slice(0, 20)
+    if (clean && clean !== teams[team].name) store.update(`${base}/meta/teams/${team}`, { name: clean })
+  }
+
+  const member = (id) => (
+    <li key={id}
+      className={`flex items-center gap-1 rounded-full bg-white border pl-3 pr-1 py-0.5 text-sm font-bold ${online[id] === false ? 'text-slate-400 border-dashed' : 'border-slate-200'}`}>
+      <span className="truncate max-w-[9rem]">{players[id].name}</span>
+      <select value={teams[players[id].team] ? players[id].team : ''} onChange={(e) => move(id, e.target.value)}
+        title="Mover a otro equipo" className="bg-transparent text-sm cursor-pointer">
+        <option value="">—</option>
+        {ids.map((t) => <option key={t} value={t}>{teams[t].emoji}</option>)}
+      </select>
+      <button onClick={() => onKick(id)} title="Expulsar"
+        className="w-5 h-5 rounded-full text-slate-400 hover:bg-rose-100 hover:text-rose-700">×</button>
+    </li>
+  )
+
+  return (
+    <div className="rounded-3xl bg-white border border-slate-200 p-5 flex-1 flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="font-bold">Equipos · {everyone.length} alumnos</p>
+        <Segmented value={pick} onChange={(teamPick) => store.update(`${base}/meta`, { teamPick })}
+          options={[['random', 'Al azar'], ['choose', 'Ellos eligen']]} />
+        <div className="inline-flex items-center rounded-xl bg-slate-100 p-1 gap-1">
+          <button onClick={() => setCount(ids.length - 1)} disabled={ids.length <= 2}
+            className="w-8 h-8 rounded-lg font-black hover:bg-white disabled:opacity-30">−</button>
+          <span className="px-1 text-sm font-bold tabular-nums">{ids.length} equipos</span>
+          <button onClick={() => setCount(ids.length + 1)} disabled={ids.length >= MAX_TEAMS}
+            className="w-8 h-8 rounded-lg font-black hover:bg-white disabled:opacity-30">+</button>
+        </div>
+        <Button variant="ghost" className="!py-2 text-sm" onClick={shuffle} disabled={!everyone.length}>🎲 Repartir al azar</Button>
+      </div>
+      <p className="text-sm text-slate-500">
+        {pick === 'choose'
+          ? 'Cada alumno elige su equipo en el celular. '
+          : 'Toca “Repartir al azar” cuando estén todos. '}
+        De {TEAM_MIN} a {TEAM_MAX} por equipo. Puedes mover a cualquiera con su menú, y quien quede sin equipo entra al más pequeño al comenzar.
+      </p>
+      <div className="grid sm:grid-cols-2 gap-2">
+        {ids.map((t) => {
+          const members = membersOf(t, players)
+          const off = members.length < TEAM_MIN || members.length > TEAM_MAX
+          const st = presetOf(t)
+          return (
+            <div key={t} className={`rounded-2xl border-2 p-3 ${st.border} ${st.tint}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{teams[t].emoji}</span>
+                <input key={teams[t].name} defaultValue={teams[t].name} maxLength={20} aria-label="Nombre del equipo"
+                  onBlur={(e) => rename(t, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                  className="flex-1 min-w-0 bg-transparent font-black outline-none border-b border-transparent focus:border-slate-400" />
+                <span title={`De ${TEAM_MIN} a ${TEAM_MAX} por equipo`}
+                  className={`rounded-full px-2 text-sm font-black tabular-nums ${off ? 'bg-rose-100 text-rose-700' : 'bg-white text-slate-600'}`}>
+                  {members.length}
+                </span>
+              </div>
+              <ul className="mt-2 flex flex-wrap gap-1.5 min-h-[1.75rem]">{members.map(member)}</ul>
+            </div>
+          )
+        })}
+        {unassigned.length > 0 && (
+          <div className="rounded-2xl border-2 border-dashed border-slate-300 p-3">
+            <p className="font-black text-slate-500">Sin equipo · {unassigned.length}</p>
+            <ul className="mt-2 flex flex-wrap gap-1.5">{unassigned.map(member)}</ul>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -649,7 +802,7 @@ function CountUp({ to, ms = 1200 }) {
   return value
 }
 
-function Podium({ ranking, stage, onAgain }) {
+function Podium({ ranking, mvp, stage, onAgain }) {
   const shown = { 1: stage.first, 2: stage.second, 3: stage.third }
 
   // Solo si el primero aparece ahora (no al recargar la página mucho después).
@@ -710,6 +863,15 @@ function Podium({ ranking, stage, onAgain }) {
             </li>
           ))}
         </ol>
+      )}
+      {stage.rest && mvp && (
+        <div className="flex items-center gap-4 rounded-3xl bg-gradient-to-r from-amber-100 to-yellow-50 border-2 border-amber-300 px-6 py-3 animate-rise">
+          <span className="text-5xl">⭐</span>
+          <div>
+            <p className="text-sm font-black uppercase tracking-widest text-amber-700">MVP · best player</p>
+            <p className="text-3xl font-black">{mvp.name} <span className="text-xl font-bold text-slate-600 tabular-nums">· {mvp.total} pts</span></p>
+          </div>
+        </div>
       )}
       {stage.rest && <Button onClick={onAgain} className="animate-rise">Jugar otra vez</Button>}
     </section>

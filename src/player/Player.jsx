@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNow, useStore, useValue } from '../net/hooks.js'
 import { STREAK_MIN, WH_TYPES, normalize } from '../game/logic.js'
 import { podiumStage } from '../game/podium.js'
+import { TEAM_MAX, membersOf, mvpOf, presetOf, teamIdsOf, teamRanking } from '../game/teams.js'
 import confetti from 'canvas-confetti'
 import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
 
@@ -107,6 +108,11 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
   const score = useValue(store, `${base}/scores/${pid}`)
   const inGame = state?.qIndex != null && state.phase !== 'lobby'
   const myAnswer = useValue(store, inGame ? `${base}/answers/${state.qIndex}/${pid}` : null)
+  /* En equipos el celular necesita a todos: para elegir equipo (cupos), ver a
+     sus compañeros y calcular el puesto del equipo. En individual, no. */
+  const teamMode = meta?.teamMode === 'teams'
+  const players = useValue(store, teamMode ? `${base}/players` : null) || {}
+  const scores = useValue(store, teamMode ? `${base}/scores` : null) || {}
   const now = useNow(store)
 
   useEffect(() => store.presence(`${base}/online/${pid}`), [store, base, pid])
@@ -125,8 +131,16 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
   const lastQuestion = ['reading', 'answering', 'reveal'].includes(state.phase) && state.qIndex + 1 >= state.total
   const secretScore = lastQuestion || (state.phase === 'end' && !podiumStage(state.startedAt, now).rest)
 
+  const teams = meta.teams || {}
+  const myTeam = teamMode && teams[profile.team] ? { id: profile.team, ...teams[profile.team] } : null
+  const teamRank = teamMode ? teamRanking(teams, players, scores) : []
+  const myTeamPlace = myTeam ? teamRank.findIndex((t) => t.id === myTeam.id) + 1 : 0
+
   let body
-  if (state.phase === 'lobby') {
+  if (state.phase === 'lobby' && teamMode) {
+    body = <TeamLobby profile={profile} pid={pid} meta={meta} players={players}
+      onPick={(team) => store.update(`${base}/players/${pid}`, { team })} />
+  } else if (state.phase === 'lobby') {
     body = (
       <Message emoji="✅" title={`You're in, ${profile.name}!`}>
         Look at the screen. The game starts soon.
@@ -168,6 +182,13 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
     body = state.question.kind === 'choice'
       ? <ChoiceResult question={state.question} solution={state.solution} answer={myAnswer} score={score} secret={secretScore} practice={state.practice} />
       : <Result solution={state.solution} answer={myAnswer} score={score} secret={secretScore} practice={state.practice} />
+  } else if (state.phase === 'leaderboard' && myTeam) {
+    body = (
+      <Message emoji={myTeam.emoji} title={myTeamPlace ? `Your team is #${myTeamPlace}` : 'Ranking'}>
+        {myTeam.name}: {teamRank[myTeamPlace - 1]?.total ?? 0} points (team average)
+        <span className="block mt-1 text-sm">You: {score?.total ?? 0} points</span>
+      </Message>
+    )
   } else if (state.phase === 'leaderboard') {
     body = (
       <Message emoji="📊" title={score?.rank ? `You are #${score.rank}` : 'Ranking'}>
@@ -177,7 +198,10 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
   } else if (state.phase === 'end') {
     // Mismo guion que el proyector: el puesto no se ve aquí antes que en la pantalla.
     body = podiumStage(state.startedAt, now).rest
-      ? <FinalPosition score={score} />
+      ? (myTeam
+        ? <TeamFinalPosition team={myTeam} place={myTeamPlace} total={teamRank[myTeamPlace - 1]?.total ?? 0}
+            mvp={mvpOf(players, scores)?.id === pid} />
+        : <FinalPosition score={score} />)
       : <Message emoji="👀" title="Look at the screen!">The podium is being revealed…</Message>
   }
 
@@ -186,6 +210,7 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200">
         <Logo className="text-xl" />
         <span className="flex-1 min-w-0 flex items-center justify-end gap-2">
+          {myTeam && <span title={myTeam.name} className="text-xl shrink-0">{myTeam.emoji}</span>}
           <span className="font-bold truncate">{profile.name}</span>
           <StreakBadge streak={score?.streak} className="text-sm shrink-0" />
         </span>
@@ -196,6 +221,68 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       </header>
       <main className="flex-1 w-full max-w-md mx-auto p-4">{body}</main>
     </div>
+  )
+}
+
+/* Lobby en modo equipos: "ellos eligen" muestra los equipos para tocar uno
+   (con cupo de TEAM_MAX); "al azar" espera a que el profesor reparta. */
+function TeamLobby({ profile, pid, meta, players, onPick }) {
+  const teams = meta.teams || {}
+  const ids = teamIdsOf(teams)
+  const mine = teams[profile.team] ? profile.team : null
+  const mates = mine ? membersOf(mine, players).filter((id) => id !== pid).map((id) => players[id].name) : []
+
+  if (meta.teamPick !== 'choose') {
+    return mine
+      ? (
+        <Message emoji={teams[mine].emoji} title={`You’re in the ${teams[mine].name}!`}>
+          {mates.length ? <>With {mates.join(', ')}.</> : 'Wait for your teammates.'}
+          <span className="block mt-2">Look at the screen. The game starts soon.</span>
+        </Message>
+      )
+      : (
+        <Message emoji="🎲" title={`You're in, ${profile.name}!`}>
+          The teacher is making the teams. Look at the screen.
+        </Message>
+      )
+  }
+
+  return (
+    <div className="flex flex-col gap-3 pt-6">
+      <h2 className="text-2xl font-black text-center">{mine ? 'Your team' : 'Choose your team'}</h2>
+      {ids.map((t) => {
+        const count = membersOf(t, players).length
+        const full = count >= TEAM_MAX && t !== mine
+        const st = presetOf(t)
+        return (
+          <button key={t} onClick={() => onPick(t)} disabled={full}
+            className={`flex items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition active:scale-95 disabled:opacity-40 ${st.border} ${t === mine ? `${st.solid} text-white` : st.tint}`}>
+            <span className="text-3xl">{teams[t].emoji}</span>
+            <span className="flex-1 text-lg font-black">{teams[t].name}</span>
+            <span className="text-sm font-bold tabular-nums">{full ? 'Full' : `${count} / ${TEAM_MAX}`}</span>
+          </button>
+        )
+      })}
+      {mine && (
+        <p className="text-center text-slate-600">
+          {mates.length ? <>With {mates.join(', ')}. </> : null}You can still change. Look at the screen.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function TeamFinalPosition({ team, place, total, mvp }) {
+  useEffect(() => {
+    if (!mvp && (!place || place > 3)) return
+    confetti({ particleCount: place === 1 || mvp ? 180 : 80, spread: 90, origin: { y: 0.6 }, disableForReducedMotion: true })
+  }, [place, mvp])
+  const medal = ['🥇', '🥈', '🥉'][place - 1] || team.emoji
+  return (
+    <Message emoji={medal} title={place ? `${team.emoji} ${team.name}: #${place}` : 'Game over'}>
+      {total} points (team average). {place === 1 ? 'Champions! 👑' : 'Well done, team!'}
+      {mvp && <span className="block mt-3 text-xl font-black text-amber-600">⭐ You’re the MVP!</span>}
+    </Message>
   )
 }
 
