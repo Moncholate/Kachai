@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useValue } from '../net/hooks.js'
-import { SETS, getSet } from '../game/sets.js'
-import { WH_TYPES, buildPublicQuestion, checkAnswer, scoreFor, solutionOf } from '../game/logic.js'
-import { Button, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, TimerBar } from '../ui.jsx'
+import { COURSES, LEVELS, SETS, courseOf, getSet } from '../game/sets.js'
+import { WH_TYPES, buildPublicQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
+import { Button, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar } from '../ui.jsx'
 import { getSound } from './sound.js'
 import { podiumStage } from '../game/podium.js'
 import confetti from 'canvas-confetti'
@@ -66,7 +66,9 @@ function HostRoom({ store, pin }) {
   const fired = useRef('')
 
   const set = meta ? getSet(meta.setId) : null
-  const question = set && inGame ? set.questions[state.qIndex] : null
+  /* La pregunta de práctica va con qIndex -1: así sus respuestas quedan aparte y
+     "Pregunta N / total" sigue contando solo las reales. */
+  const questionAt = (i) => (i < 0 ? set.practice : set.questions[i])
   const activeIds = Object.keys(players).filter((id) => online[id] !== false)
   const answeredCount = Object.keys(answers).filter((id) => players[id]).length
 
@@ -74,13 +76,16 @@ function HostRoom({ store, pin }) {
     store.update(base, {
       ...extra,
       state: {
-        phase: 'reading', round, qIndex: i, total: set.questions.length,
-        question: buildPublicQuestion(set.questions[i]), startedAt: store.stamp(),
+        phase: 'reading', round, qIndex: i, total: set.questions.length, practice: i < 0,
+        question: buildPublicQuestion(questionAt(i)), startedAt: store.stamp(),
       },
     })
-  const start = () => goQuestion(0, (state.round || 0) + 1, { answers: null, scores: null })
+  const withPractice = meta?.practice !== false && Boolean(set?.practice)
+  const start = () => goQuestion(withPractice ? -1 : 0, (state.round || 0) + 1, { answers: null, scores: null })
+  /* Tras el simulacro todos vuelven a 0: sus puntos solo se mostraron. */
+  const startForReal = () => goQuestion(0, state.round, { answers: null, scores: null })
   const startAnswering = () => store.update(`${base}/state`, { phase: 'answering', startedAt: store.stamp() })
-  const isLast = state?.qIndex + 1 >= set?.questions.length
+  const isLast = !state?.practice && state?.qIndex + 1 >= set?.questions.length
   const showRanking = () => store.update(`${base}/state`, { phase: 'leaderboard' })
   /* Tras la última pregunta no hay ranking: se salta directo al podio, que se
      revela por partes (ver game/podium.js) para mantener el suspenso. */
@@ -97,7 +102,7 @@ function HostRoom({ store, pin }) {
   }
 
   async function reveal() {
-    const q = set.questions[state.qIndex]
+    const q = questionAt(state.qIndex)
     const got = (await store.get(`${base}/answers/${state.qIndex}`)) || {}
     const answerMs = meta.answerSec * 1000
     const stats = { answered: 0, subject: 0, verb: 0, wh: 0 }
@@ -116,7 +121,10 @@ function HostRoom({ store, pin }) {
         stats.answered++
         PART_KEYS.forEach((k, i) => { if (parts[i]) stats[k]++ })
       }
-      nextScores[id] = { total: before + gain, gain, parts, answered: Boolean(a) }
+      nextScores[id] = {
+        total: state.practice ? before : before + gain, gain, parts, answered: Boolean(a),
+        streak: state.practice ? 0 : nextStreak(scores[id]?.streak, parts),
+      }
     }
     Object.entries(nextScores)
       .sort((a, b) => b[1].total - a[1].total)
@@ -219,7 +227,9 @@ function HostRoom({ store, pin }) {
         <Logo className="text-2xl" />
         <span className="text-slate-500">PIN <b className="text-slate-900 tracking-widest">{pin}</b></span>
         <span className="text-slate-500">{activeIds.length} conectados</span>
-        {inGame && <span className="text-slate-500">Pregunta {state.qIndex + 1} / {state.total}</span>}
+        {inGame && (state.practice
+          ? <span className="rounded-full bg-violet-100 text-violet-800 text-xs font-bold px-3 py-1">PRÁCTICA · no suma puntos</span>
+          : <span className="text-slate-500">Pregunta {state.qIndex + 1} / {state.total}</span>)}
         {!isOnline && (
           <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1">
             MODO LOCAL · solo pestañas de este navegador
@@ -238,6 +248,7 @@ function HostRoom({ store, pin }) {
         {(state.phase === 'reading' || state.phase === 'answering') && (
           <section className="flex flex-col gap-10 pt-6">
             <p className="text-center text-lg font-bold uppercase tracking-widest text-slate-500">
+              {state.practice && <span className="block text-violet-600">Practice question</span>}
               {state.phase === 'reading' ? 'Read the question…' : 'Answer on your phone!'}
             </p>
             <Prompt text={state.question.prompt} className="text-center text-5xl md:text-7xl" />
@@ -266,7 +277,8 @@ function HostRoom({ store, pin }) {
         )}
 
         {state.phase === 'reveal' && state.solution && (
-          <Reveal state={state} isLast={isLast} onNext={isLast ? showPodium : showRanking} />
+          <Reveal state={state} isLast={isLast} ranking={ranking}
+            onNext={state.practice ? startForReal : isLast ? showPodium : showRanking} />
         )}
 
         {state.phase === 'leaderboard' && (
@@ -276,7 +288,10 @@ function HostRoom({ store, pin }) {
               {ranking.slice(0, 10).map((p, i) => (
                 <li key={p.id} className="flex items-center gap-4 rounded-2xl bg-white border border-slate-200 px-5 py-3 text-xl">
                   <span className="w-8 font-black text-slate-400">{i + 1}</span>
-                  <span className="flex-1 font-bold truncate">{p.name}</span>
+                  <span className="flex-1 min-w-0 flex items-center gap-2">
+                    <span className="font-bold truncate">{p.name}</span>
+                    <StreakBadge streak={p.streak} className="text-base shrink-0" />
+                  </span>
                   {p.gain > 0 && <span className="text-green-600 font-bold">+{p.gain}</span>}
                   <span className="w-24 text-right font-black tabular-nums">{p.total}</span>
                 </li>
@@ -304,6 +319,9 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
   }, [joinUrl])
 
   const setMeta = (patch) => store.update(`${base}/meta`, patch)
+  const set = getSet(meta.setId)
+  const course = courseOf(set)
+  const eaIndex = course.eas.indexOf(set)
   const list = Object.entries(players).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0))
 
   return (
@@ -318,16 +336,35 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
 
       <section className="flex flex-col gap-5">
         <div className="rounded-3xl bg-white border border-slate-200 p-5 flex flex-col gap-4">
-          <Field label="Set de preguntas">
-            <div className="grid sm:grid-cols-3 gap-2">
-              {SETS.map((s) => (
+          <Field label="Curso">
+            <div className="grid grid-cols-[auto_repeat(3,minmax(0,1fr))] gap-2 items-center">
+              {LEVELS.map((level) => (
+                <Fragment key={level}>
+                  <span className="text-sm font-bold text-slate-500 pr-1">{level}</span>
+                  {COURSES.filter((c) => c.level === level).map((c) => (
+                    <button key={c.id} onClick={() => setMeta({ setId: c.eas[eaIndex].id })}
+                      className={`min-w-0 rounded-xl border-2 px-1 py-2 text-sm sm:text-base font-bold transition ${course.id === c.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                      {c.label}
+                    </button>
+                  ))}
+                </Fragment>
+              ))}
+            </div>
+          </Field>
+          <Field label={`Experiencia de aprendizaje · ${course.book}`}>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {course.eas.map((s) => (
                 <button key={s.id} onClick={() => setMeta({ setId: s.id })}
-                  className={`rounded-xl border-2 p-3 text-left transition ${meta.setId === s.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                  <span className="block font-bold">{s.name}</span>
+                  className={`rounded-xl border-2 p-3 text-left transition ${set.id === s.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <span className="block font-bold">{s.ea} <span className="font-normal text-slate-500">· {s.files}</span></span>
                   <span className="block text-xs text-slate-500">{s.topics} · {s.questions.length} preguntas</span>
                 </button>
               ))}
             </div>
+          </Field>
+          <Field label="Pregunta de práctica al inicio (no suma puntos)">
+            <Segmented value={meta.practice !== false} onChange={(practice) => setMeta({ practice })}
+              options={[[true, 'Sí'], [false, 'No']]} />
           </Field>
           <Field label="Sujeto y verbo">
             <Segmented value={meta.mode} onChange={(mode) => setMeta({ mode })}
@@ -416,7 +453,7 @@ function Segmented({ value, onChange, options }) {
   )
 }
 
-function Reveal({ state, isLast, onNext }) {
+function Reveal({ state, isLast, ranking, onNext }) {
   const { solution, stats } = state
   const pct = (k) => (stats.answered ? Math.round((stats[k] / stats.answered) * 100) : 0)
   const shown = {
@@ -445,10 +482,34 @@ function Reveal({ state, isLast, onNext }) {
         </p>
       )}
       <p className="text-center text-slate-500">{stats.answered} answers</p>
+      {state.practice && <PracticePoints ranking={ranking} />}
       <div className="flex justify-center">
-        <Button onClick={onNext}>{isLast ? 'Ver podio 🏆' : 'Ver ranking →'}</Button>
+        <Button onClick={onNext}>
+          {state.practice ? '¡Ahora sí, a jugar! →' : isLast ? 'Ver podio 🏆' : 'Ver ranking →'}
+        </Button>
       </div>
     </section>
+  )
+}
+
+/* Lo que cada uno habría ganado en el simulacro: enseña cómo se puntúa
+   (partes correctas × rapidez) sin que cuente para el juego. */
+function PracticePoints({ ranking }) {
+  const list = [...ranking].sort((a, b) => b.gain - a.gain)
+  return (
+    <div className="max-w-2xl w-full mx-auto rounded-3xl border-2 border-dashed border-violet-300 bg-violet-50 p-5">
+      <p className="text-center font-bold text-violet-800 mb-3">
+        Practice points — they don’t count. The real game starts at 0!
+      </p>
+      <ol className="flex flex-wrap justify-center gap-2">
+        {list.map((p) => (
+          <li key={p.id} className="flex items-center gap-2 rounded-full bg-white border border-violet-200 pl-3 pr-2 py-1">
+            <span className="font-bold">{p.name}</span>
+            <span className="rounded-full bg-violet-600 text-white text-sm font-black px-2 tabular-nums">+{p.gain || 0}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }
 

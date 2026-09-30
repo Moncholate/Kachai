@@ -1,4 +1,4 @@
-import { splitWh } from './game/logic.js'
+import { STREAK_MIN, splitWh } from './game/logic.js'
 
 /* Colores de rol del Grammar Hub (design-tokens): sujeto azul, verbo rojo grave,
    wh teal. Clases literales para que Tailwind las encuentre. */
@@ -75,6 +75,17 @@ export function TimerBar({ start, ms, now, className = '' }) {
         {Math.ceil(left / 1000)}
       </span>
     </div>
+  )
+}
+
+/* 🔥 N junto al nombre mientras dure una racha de STREAK_MIN o más. */
+export function StreakBadge({ streak, className = '' }) {
+  if (!(streak >= STREAK_MIN)) return null
+  return (
+    <span title={`${streak} correct in a row`}
+      className={`inline-flex items-center gap-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 font-black px-2 leading-tight tabular-nums ${className}`}>
+      🔥 {streak}
+    </span>
   )
 }
 

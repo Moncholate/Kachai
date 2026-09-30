@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildPublicQuestion, checkAnswer, normalize, scoreFor, splitWh, WH_TYPES } from './logic.js'
-import { SETS } from './sets.js'
+import { buildPublicQuestion, checkAnswer, nextStreak, normalize, scoreFor, splitWh, WH_TYPES } from './logic.js'
+import { COURSES, SETS, getSet } from './sets.js'
 
-const q = SETS[0].questions[0] // Where did María work yesterday?
+const q = { prompt: 'Where did María work yesterday?', wh: 'place', example: 'She worked at the hospital.',
+  subject: { accept: ['María', 'She'], distractors: ['He', 'Yesterday', 'They'] },
+  verb: { accept: ['worked'], distractors: ['work', 'works', 'did work'] } }
 
 describe('checkAnswer', () => {
   it('acepta nombre o pronombre, sin importar tildes ni mayúsculas', () => {
@@ -42,7 +44,7 @@ describe('splitWh', () => {
 
 describe('sets', () => {
   for (const set of SETS) {
-    for (const item of set.questions) {
+    for (const item of [set.practice, ...set.questions]) {
       it(`${set.id} · ${item.prompt}`, () => {
         expect(WH_TYPES[item.wh]).toBeDefined()
         for (const part of ['subject', 'verb']) {
@@ -59,4 +61,39 @@ describe('sets', () => {
       })
     }
   }
+})
+
+describe('biblioteca', () => {
+  it('9 cursos, cada uno con EA1 y EA2 con preguntas', () => {
+    expect(COURSES).toHaveLength(9)
+    for (const c of COURSES) {
+      expect(c.eas.map((e) => e.ea)).toEqual(['EA1', 'EA2'])
+      for (const e of c.eas) expect(e.questions.length).toBeGreaterThanOrEqual(10)
+    }
+  })
+  it('ids únicos y sin preguntas repetidas dentro de un set', () => {
+    expect(new Set(SETS.map((s) => s.id)).size).toBe(SETS.length)
+    for (const s of SETS) expect(new Set(s.questions.map((x) => x.prompt)).size).toBe(s.questions.length)
+  })
+  it('cada set practica al menos 4 tipos de wh distintos', () => {
+    for (const s of SETS) expect(new Set(s.questions.map((x) => x.wh)).size).toBeGreaterThanOrEqual(4)
+  })
+  it('cada set tiene su pregunta de práctica, distinta de las del juego', () => {
+    for (const s of SETS) {
+      expect(s.practice).toBeDefined()
+      expect(s.questions.map((x) => x.prompt)).not.toContain(s.practice.prompt)
+    }
+  })
+  it('un setId viejo o desconocido cae en el primero', () => {
+    expect(getSet('a1')).toBe(SETS[0])
+  })
+})
+
+describe('nextStreak', () => {
+  it('suma solo con las tres partes bien y se corta con cualquier fallo', () => {
+    expect(nextStreak(undefined, [true, true, true])).toBe(1)
+    expect(nextStreak(2, [true, true, true])).toBe(3)
+    expect(nextStreak(5, [true, true, false])).toBe(0)
+    expect(nextStreak(5, [false, false, false])).toBe(0)
+  })
 })

@@ -72,6 +72,14 @@ export function scoreFor(parts, elapsedMs, answerMs) {
   return Math.round((MAX_POINTS * correct / 3) * (1 - t / 2))
 }
 
+/* Racha: preguntas SEGUIDAS con las tres partes bien. Una parte mal (o no
+   responder) la corta. Desde STREAK_MIN se luce con 🔥 junto al nombre. */
+export const STREAK_MIN = 3
+
+export function nextStreak(previous, parts) {
+  return parts.every(Boolean) ? (previous || 0) + 1 : 0
+}
+
 /* Separa la wh-word del resto para pintarla con su color de rol. */
 export function splitWh(prompt) {
   const m = prompt.match(/^(how (many|much|often|long|far|old)|what time|what kind of|\w+)\b/i)

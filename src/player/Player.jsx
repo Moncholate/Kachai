@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNow, useStore, useValue } from '../net/hooks.js'
-import { WH_TYPES, normalize } from '../game/logic.js'
+import { STREAK_MIN, WH_TYPES, normalize } from '../game/logic.js'
 import { podiumStage } from '../game/podium.js'
 import confetti from 'canvas-confetti'
-import { Button, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, TimerBar } from '../ui.jsx'
+import { Button, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar } from '../ui.jsx'
 
 /* sessionStorage y no localStorage: cada pestaña es un jugador distinto (útil
    para probar), y recargar la página conserva al mismo jugador. Si el celular
@@ -135,6 +135,7 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
   } else if (state.phase === 'reading') {
     body = (
       <div className="flex flex-col gap-6 pt-8">
+        {state.practice && <PracticeBadge />}
         <p className="text-center font-bold uppercase tracking-widest text-slate-500 text-sm">Read carefully</p>
         <Prompt text={state.question.prompt} className="text-center text-3xl" />
         <TimerBar start={state.startedAt} ms={meta.readSec * 1000} now={now} />
@@ -153,12 +154,15 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       body = <Message emoji="⏰" title="Time's up!">Be faster next time.</Message>
     } else {
       body = (
-        <AnswerForm key={`${state.round}-${state.qIndex}`} question={state.question} mode={meta.mode}
-          timer={<TimerBar start={state.startedAt} ms={answerMs} now={now} />} onSubmit={submit} />
+        <>
+          {state.practice && <PracticeBadge />}
+          <AnswerForm key={`${state.round}-${state.qIndex}`} question={state.question} mode={meta.mode}
+            timer={<TimerBar start={state.startedAt} ms={answerMs} now={now} />} onSubmit={submit} />
+        </>
       )
     }
   } else if (state.phase === 'reveal' && state.solution) {
-    body = <Result solution={state.solution} answer={myAnswer} score={score} secret={secretScore} />
+    body = <Result solution={state.solution} answer={myAnswer} score={score} secret={secretScore} practice={state.practice} />
   } else if (state.phase === 'leaderboard') {
     body = (
       <Message emoji="📊" title={score?.rank ? `You are #${score.rank}` : 'Ranking'}>
@@ -176,7 +180,10 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
     <div className="min-h-screen flex flex-col">
       <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200">
         <Logo className="text-xl" />
-        <span className="flex-1 font-bold truncate text-right">{profile.name}</span>
+        <span className="flex-1 min-w-0 flex items-center justify-end gap-2">
+          <span className="font-bold truncate">{profile.name}</span>
+          <StreakBadge streak={score?.streak} className="text-sm shrink-0" />
+        </span>
         <span className="rounded-full bg-slate-900 text-white px-3 py-1 text-sm font-black tabular-nums"
           title={secretScore ? 'Secret until the podium' : undefined}>
           {secretScore ? '🤫' : score?.total ?? 0}
@@ -198,6 +205,14 @@ function FinalPosition({ score }) {
     <Message emoji={medal} title={rank ? `Final position: #${rank}` : 'Game over'}>
       {score?.total ?? 0} points. {rank === 1 ? 'You are the champion! 👑' : 'Well done!'}
     </Message>
+  )
+}
+
+function PracticeBadge() {
+  return (
+    <p className="self-center mx-auto mb-3 w-fit rounded-full bg-violet-100 text-violet-800 text-xs font-black uppercase tracking-widest px-3 py-1">
+      Practice · no points
+    </p>
   )
 }
 
@@ -292,7 +307,7 @@ function MyChoices({ answer }) {
   )
 }
 
-function Result({ solution, answer, score, secret }) {
+function Result({ solution, answer, score, secret, practice }) {
   const parts = score?.parts || [false, false, false]
   const correct = { subject: solution.subject.join(' / '), verb: solution.verb.join(' / '), wh: WH_TYPES[solution.wh] }
   return (
@@ -302,6 +317,12 @@ function Result({ solution, answer, score, secret }) {
         {secret
           ? <p className="text-lg font-bold mt-2 text-slate-600">Points are secret until the podium 🤫</p>
           : <p className="text-3xl font-black mt-2">+{score?.gain ?? 0}</p>}
+        {practice && (
+          <p className="text-violet-700 font-bold">Practice: these points don’t count. The real game starts at 0!</p>
+        )}
+        {score?.streak >= STREAK_MIN && (
+          <p className="mt-2 text-xl font-black text-orange-600">🔥 {score.streak} in a row!</p>
+        )}
         {!answer && <p className="text-slate-500">No answer this time.</p>}
       </div>
       {PART_KEYS.map((k, i) => (
