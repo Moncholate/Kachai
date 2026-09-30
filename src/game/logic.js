@@ -50,10 +50,13 @@ export const mc = (prompt, answer, ...wrong) => ({ prompt, answer, options: [ans
 /* Lo que ven los celulares: opciones barajadas, SIN la solución. La barajada la
    hace el profesor una vez, así todos ven el mismo orden. */
 export function buildPublicQuestion(q, rand = Math.random) {
-  if (isChoice(q)) return { kind: 'choice', prompt: q.prompt, options: shuffle(q.options, rand) }
+  /* La imagen se ve solo en el proyector (la tiene el profesor): a los celulares
+     viaja apenas el aviso, para no mandar cientos de KB a cada alumno. */
+  const image = q.image ? { hasImage: true } : {}
+  if (isChoice(q)) return { kind: 'choice', prompt: q.prompt, options: shuffle(q.options, rand), ...image }
   const whOthers = shuffle(Object.keys(WH_TYPES).filter((k) => k !== q.wh), rand).slice(0, 3)
   return {
-    kind: 'builder',
+    kind: 'builder', ...image,
     prompt: q.prompt,
     subjectOptions: shuffle([...q.subject.accept, ...q.subject.distractors], rand),
     verbOptions: shuffle([...q.verb.accept, ...q.verb.distractors], rand),

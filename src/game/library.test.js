@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyLibrary, normalizeQuestion, questionErrors, setErrors } from './library.js'
-import { mc } from './logic.js'
+import { applyLibrary, customSet, isCustomId, normalizeQuestion, questionErrors, setErrors } from './library.js'
+import { buildPublicQuestion, mc } from './logic.js'
 import { SETS } from './sets.js'
 
 const builder = {
@@ -44,6 +44,28 @@ describe('biblioteca personal', () => {
     expect(questionErrors(builder)).toEqual([])
     expect(questionErrors({ ...builder, subject: { accept: [], distractors: [] } })).toContain('Falta al menos un sujeto correcto.')
     expect(questionErrors({ ...builder, verb: { accept: ['lives'], distractors: ['Lives'] } })[0]).toMatch(/verbo correcto y trampa/)
+  })
+
+  it('imagen opcional: archivo comprimido (data URL con tope) o enlace https', () => {
+    const q = mc('What is this?', 'a pen', 'a book', 'a key')
+    expect(questionErrors({ ...q, image: 'data:image/jpeg;base64,AAAA' })).toEqual([])
+    expect(questionErrors({ ...q, image: 'https://example.com/pen.jpg' })).toEqual([])
+    expect(questionErrors({ ...q, image: 'http://example.com/pen.jpg' })[0]).toMatch(/https/)
+    expect(questionErrors({ ...q, image: `data:image/jpeg;base64,${'A'.repeat(500_000)}` })).toContain('La imagen es demasiado pesada.')
+    expect(normalizeQuestion({ ...q, image: 'https://example.com/pen.jpg' }).image).toBe('https://example.com/pen.jpg')
+    // a los celulares no viaja la imagen, solo el aviso
+    const pub = buildPublicQuestion({ ...q, image: 'data:image/jpeg;base64,AAAA' })
+    expect(pub.hasImage).toBe(true)
+    expect(JSON.stringify(pub)).not.toContain('base64')
+  })
+
+  it('una actividad propia se arma igual que las de la biblioteca', () => {
+    const set = customSet('custom-x', { title: 'Mi quiz', mechanic: 'choice', course: 'basico2', ea: 1 },
+      { 0: mc('Q?', 'a', 'b', 'c') })
+    expect(set).toMatchObject({ id: 'custom-x', type: 'custom', title: 'Mi quiz', course: 'basico2', ea: 'EA2' })
+    expect(set.questions[0].options).toEqual(['a', 'b', 'c'])
+    expect(isCustomId('custom-x')).toBe(true)
+    expect(isCustomId('basico1-ea1')).toBe(false)
   })
 
   it('entre 1 y 15 preguntas', () => {

@@ -2,12 +2,14 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
-import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, eaOf, getSet, sameTypeIn } from '../game/sets.js'
-import { WH_TYPES, buildPublicQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
+import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } from '../game/sets.js'
+import { WH_TYPES, buildPublicQuestion, isChoice, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
 import { getSound } from './sound.js'
-import Editor from './Editor.jsx'
-import { applyLibrary, libraryPath } from '../game/library.js'
+import Editor, { blankQuestion } from './Editor.jsx'
+import {
+  applyLibrary, customIndexPath, customQuestionsPath, customSet, isCustomId, libraryPath, newCustomId,
+} from '../game/library.js'
 import { podiumStage } from '../game/podium.js'
 import {
   MAX_TEAMS, TEAM_MAX, TEAM_MIN, makeTeams, membersOf, mvpOf, presetOf, shuffleIntoTeams, smallestTeam,
@@ -75,10 +77,20 @@ function HostRoom({ store, pin }) {
   const library = useValue(store, user ? libraryPath(user.uid) : null) || {}
   const [editing, setEditing] = useState(null)
 
-  const set = meta ? applyLibrary(getSet(meta.setId), library[meta.setId]) : null
+  /* Actividades propias: el índice (liviano) siempre; las preguntas, que pueden
+     traer imágenes, solo de la elegida. */
+  const customIndex = useValue(store, user ? customIndexPath(user.uid) : null) || {}
+  const customId = isCustomId(meta?.setId) ? meta.setId : null
+  const customQuestions = useValue(store, user && customId ? customQuestionsPath(user.uid, customId) : null)
+  const customReady = Boolean(customId && customIndex[customId] && customQuestions)
+  const set = !meta ? null
+    : customReady ? customSet(customId, customIndex[customId], customQuestions)
+    : applyLibrary(getSet(meta.setId), library[meta.setId])
+  const setReady = !customId || customReady
   /* La pregunta de práctica va con qIndex -1: así sus respuestas quedan aparte y
      "Pregunta N / total" sigue contando solo las reales. */
   const questionAt = (i) => (i < 0 ? set.practice : set.questions[i])
+  const current = set && inGame ? questionAt(state.qIndex) : null
   const activeIds = Object.keys(players).filter((id) => online[id] !== false)
   const teamMode = meta?.teamMode === 'teams'
   const teams = meta?.teams || {}
@@ -288,23 +300,33 @@ function HostRoom({ store, pin }) {
 
       <main className="flex-1 w-full max-w-6xl mx-auto p-6">
         {state.phase === 'lobby' && editing && user && (
-          <Editor store={store} user={user} base={getSet(editing)} custom={library[editing] && applyLibrary(getSet(editing), library[editing])}
-            onClose={() => setEditing(null)} />
+          <ActivityEditor store={store} user={user} editing={editing} library={library} customIndex={customIndex}
+            current={set} onSelect={(setId) => store.update(`${base}/meta`, { setId })} onClose={() => setEditing(null)} />
         )}
         {state.phase === 'lobby' && !editing && (
           <Lobby store={store} base={base} pin={pin} meta={meta} players={players} online={online}
-            library={library} onKick={kick} onStart={start}
-            onEdit={async (id) => { if (user || (await signInFriendly(store))) setEditing(id) }} />
+            set={set} setReady={setReady} user={user} library={library} customIndex={customIndex}
+            onKick={kick} onStart={start}
+            onEdit={async (id) => {
+              if (!user && !(await signInFriendly(store))) return
+              setEditing(isCustomId(id) ? { kind: 'custom', id, info: customIndex[id] } : { kind: 'base', id })
+            }}
+            onCreate={async (info) => {
+              if (!user && !(await signInFriendly(store))) return
+              setEditing({ kind: 'custom', id: newCustomId(), info, isNew: true })
+            }} />
         )}
 
         {(state.phase === 'reading' || state.phase === 'answering') && (
-          <section className="flex flex-col gap-10 pt-6">
+          <section className={`flex flex-col pt-6 ${current?.image ? "gap-5" : "gap-10"}`}>
             <p className="text-center text-lg font-bold uppercase tracking-widest text-slate-500">
               {state.practice && <span className="block text-violet-600">Practice question</span>}
               {state.phase === 'reading' ? 'Read the question…' : 'Answer on your phone!'}
             </p>
+            {/* Grande mientras leen; al responder se achica para que entren las alternativas. */}
+            {current?.image && <QuestionImage src={current.image} className={state.phase === 'reading' ? 'max-h-[42vh]' : 'max-h-[24vh]'} />}
             <Prompt text={state.question.prompt} highlightWh={state.question.kind !== 'choice'}
-              className="text-center text-5xl md:text-7xl" />
+              className={`text-center ${current?.image ? 'text-4xl md:text-5xl' : 'text-5xl md:text-7xl'}`} />
             <TimerBar
               start={state.startedAt}
               ms={(state.phase === 'reading' ? meta.readSec : meta.answerSec) * 1000}
@@ -334,7 +356,7 @@ function HostRoom({ store, pin }) {
         )}
 
         {state.phase === 'reveal' && state.solution && (
-          <Reveal state={state} isLast={isLast} ranking={ranking}
+          <Reveal state={state} isLast={isLast} ranking={ranking} image={current?.image}
             onNext={state.practice ? startForReal : isLast ? showPodium : showRanking} />
         )}
 
@@ -390,7 +412,7 @@ function HostRoom({ store, pin }) {
   )
 }
 
-function Lobby({ store, base, pin, meta, players, online, library, onKick, onStart, onEdit }) {
+function Lobby({ store, base, pin, meta, players, online, set, setReady, user, library, customIndex, onKick, onStart, onEdit, onCreate }) {
   const joinUrl = `${location.origin}${location.pathname}#/play?pin=${pin}`
   const [qr, setQr] = useState('')
   useEffect(() => {
@@ -398,11 +420,10 @@ function Lobby({ store, base, pin, meta, players, online, library, onKick, onSta
   }, [joinUrl])
 
   const setMeta = (patch) => store.update(`${base}/meta`, patch)
-  const set = getSet(meta.setId)
   const count = (a) => applyLibrary(a, library[a.id]).questions.length
   const mine = (a) => Boolean(library[a.id])
   const course = courseOf(set)
-  const ea = eaOf(set)
+  const ea = course.eas.find((e) => e.ea === set.ea)
   const eaIndex = course.eas.indexOf(ea)
   const focusList = ea.activities.filter((a) => a.type === 'grammar-focus')
   const teamMode = meta.teamMode === 'teams'
@@ -479,6 +500,11 @@ function Lobby({ store, base, pin, meta, players, online, library, onKick, onSta
                 </div>
               </div>
             )}
+            <MyActivities user={user} entries={Object.entries(customIndex)
+              .filter(([, info]) => info.course === course.id && info.ea === eaIndex)
+              .sort((a, b) => (a[1].title || '').localeCompare(b[1].title || ''))}
+              selected={meta.setId} onSelect={(setId) => setMeta({ setId })}
+              onCreate={(mechanic) => onCreate({ mechanic, course: course.id, ea: eaIndex, title: '' })} />
             <button onClick={() => onEdit(set.id)}
               className="mt-2 text-sm font-bold text-[#0F6FD6] hover:underline">
               ✏️ Editar “{set.topic ?? set.title}”{mine(set) ? ' (tu versión)' : ''}
@@ -490,7 +516,7 @@ function Lobby({ store, base, pin, meta, players, online, library, onKick, onSta
                 options={[[true, 'Sí'], [false, 'No']]} />
             </Field>
           )}
-          {set.type === 'answer-builder' && (
+          {(set.type === 'answer-builder' || set.mechanic === 'builder') && (
             <Field label="Sujeto y verbo">
               <Segmented value={meta.mode} onChange={(mode) => setMeta({ mode })}
                 options={[['select', 'Elegir de una lista'], ['write', 'Escribirlos']]} />
@@ -528,7 +554,12 @@ function Lobby({ store, base, pin, meta, players, online, library, onKick, onSta
           </ul>
         </div>
 
-        <Button className="text-xl py-4" disabled={list.length === 0} onClick={onStart}>
+        {!setReady && (
+          <p className="text-center text-sm font-bold text-amber-700">
+            {user ? 'Cargando tu actividad…' : 'Inicia sesión para usar tu actividad, o elige otra.'}
+          </p>
+        )}
+        <Button className="text-xl py-4" disabled={list.length === 0 || !setReady} onClick={onStart}>
           Comenzar ▶
         </Button>
       </section>
@@ -629,6 +660,103 @@ function TeamsPanel({ store, base, meta, players, online, onKick }) {
   )
 }
 
+/* Las actividades que el docente creó desde cero, en el curso y EA elegidos. */
+function MyActivities({ user, entries, selected, onSelect, onCreate }) {
+  const [choosing, setChoosing] = useState(false)
+  return (
+    <div className="mt-2 rounded-xl border-2 border-dashed border-slate-300 p-3">
+      <p className="font-bold">
+        Mis actividades <span className="font-normal text-slate-500">· creadas por ti, solo tú las ves</span>
+      </p>
+      {entries.length > 0 && (
+        <div className="mt-2 grid sm:grid-cols-2 gap-2">
+          {entries.map(([id, info]) => (
+            <button key={id} onClick={() => onSelect(id)}
+              className={`rounded-lg border-2 px-3 py-2 text-left transition ${selected === id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+              <span className="block font-bold truncate">{info.title}</span>
+              <span className="block text-xs text-slate-500">
+                {info.mechanic === 'choice' ? 'Opción múltiple' : 'Answer Builder'} · {info.count} preguntas
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {!choosing ? (
+        <button onClick={() => setChoosing(true)} className="mt-2 text-sm font-bold text-[#0F6FD6] hover:underline">
+          + Crear actividad{user ? '' : ' (inicia sesión con Google)'}
+        </button>
+      ) : (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-bold text-slate-600">¿De qué tipo?</span>
+          <Button variant="ghost" className="!py-1.5 text-sm" onClick={() => { setChoosing(false); onCreate('choice') }}>
+            Opción múltiple (tipo Kahoot)
+          </Button>
+          <Button variant="ghost" className="!py-1.5 text-sm" onClick={() => { setChoosing(false); onCreate('builder') }}>
+            Answer Builder
+          </Button>
+          <button onClick={() => setChoosing(false)} className="text-slate-500 hover:underline">Cancelar</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* Arma el editor según qué se edita: la versión propia de una actividad base,
+   o una actividad creada desde cero (nueva o existente). */
+function ActivityEditor({ store, user, editing, library, customIndex, current, onSelect, onClose }) {
+  const root = `libraries/${user.uid}`
+  if (editing.kind === 'base') {
+    const original = getSet(editing.id)
+    const edited = library[editing.id]
+    return (
+      <Editor key={editing.id} heading="Editando tu versión de"
+        title={`${original.courseName} · ${original.ea} · ${original.title}`}
+        subheading={`Los cambios son solo tuyos (${user.name}); los demás docentes siguen viendo la original.`}
+        mechanic={isChoice(original.questions[0]) ? 'choice' : 'builder'}
+        questions={applyLibrary(original, edited).questions}
+        onSave={(questions) => store.set(`${libraryPath(user.uid)}/${editing.id}`, { questions, updatedAt: store.stamp() })}
+        discardLabel={edited ? 'Restaurar original' : null}
+        onDiscard={async () => {
+          if (!confirm('¿Volver a la versión original? Se perderán tus cambios en esta actividad.')) return false
+          await store.remove(`${libraryPath(user.uid)}/${editing.id}`)
+          return true
+        }}
+        onClose={onClose} />
+    )
+  }
+
+  const info = customIndex[editing.id] ?? editing.info
+  const course = COURSES.find((c) => c.id === info.course)
+  const questions = editing.isNew
+    ? [blankQuestion(info.mechanic)]
+    : current?.id === editing.id ? current.questions : []
+  if (!questions.length) return <Center>Cargando tu actividad…</Center>
+  return (
+    <Editor key={editing.id} heading={editing.isNew ? 'Nueva actividad' : 'Editando tu actividad'} titled title={info.title}
+      subheading={`${course?.name} · EA${info.ea + 1} · ${info.mechanic === 'choice' ? 'Opción múltiple' : 'Answer Builder'} · Solo tú la ves y la puedes usar.`}
+      mechanic={info.mechanic} questions={questions}
+      onSave={async (qs, title) => {
+        await store.update(root, {
+          [`custom/${editing.id}`]: { ...info, title, count: qs.length, updatedAt: store.stamp() },
+          [`customQuestions/${editing.id}`]: qs,
+        })
+        onSelect(editing.id)
+      }}
+      discardLabel={editing.isNew ? null : 'Eliminar actividad'}
+      onDiscard={async () => {
+        if (!confirm(`¿Eliminar "${info.title}"? No se puede deshacer.`)) return false
+        onSelect(course.eas[info.ea].activities[0].id)
+        await store.update(root, { [`custom/${editing.id}`]: null, [`customQuestions/${editing.id}`]: null })
+        return true
+      }}
+      onClose={onClose} />
+  )
+}
+
+function QuestionImage({ src, className = '' }) {
+  return <img src={src} alt="" className={`mx-auto max-w-full rounded-2xl shadow-md object-contain bg-white ${className}`} />
+}
+
 function MineBadge() {
   return (
     <span className="inline-block mt-1 rounded-md bg-amber-100 text-amber-800 text-[11px] font-bold uppercase tracking-wide px-2 py-0.5">
@@ -721,8 +849,8 @@ function Segmented({ value, onChange, options }) {
   )
 }
 
-function Reveal({ state, isLast, ranking, onNext }) {
-  if (state.question.kind === 'choice') return <ChoiceReveal state={state} isLast={isLast} ranking={ranking} onNext={onNext} />
+function Reveal({ state, isLast, ranking, image, onNext }) {
+  if (state.question.kind === 'choice') return <ChoiceReveal state={state} isLast={isLast} ranking={ranking} image={image} onNext={onNext} />
   const { solution, stats } = state
   const pct = (k) => (stats.answered ? Math.round((stats[k] / stats.answered) * 100) : 0)
   const shown = {
@@ -732,6 +860,7 @@ function Reveal({ state, isLast, ranking, onNext }) {
   }
   return (
     <section className="flex flex-col gap-8 pt-4">
+      {image && <QuestionImage src={image} className="max-h-[22vh]" />}
       <Prompt text={state.question.prompt} className="text-center text-4xl md:text-5xl" />
       <div className="grid md:grid-cols-3 gap-4">
         {PART_KEYS.map((k) => (
@@ -788,11 +917,12 @@ function ChoiceTiles({ options, answer, votes }) {
   )
 }
 
-function ChoiceReveal({ state, isLast, ranking, onNext }) {
+function ChoiceReveal({ state, isLast, ranking, image, onNext }) {
   const { solution, stats } = state
   const pct = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0
   return (
     <section className="flex flex-col gap-8 pt-4">
+      {image && <QuestionImage src={image} className="max-h-[22vh]" />}
       <Prompt text={state.question.prompt} highlightWh={false} className="text-center text-4xl md:text-5xl" />
       <ChoiceTiles options={state.question.options} answer={solution.answer} votes={stats.votes} />
       <p className="text-center text-2xl text-slate-600">

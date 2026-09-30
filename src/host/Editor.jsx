@@ -1,44 +1,54 @@
-import { useState } from 'react'
-import { WH_TYPES, isChoice } from '../game/logic.js'
-import { MAX_OPTIONS, MAX_QUESTIONS, MIN_OPTIONS, libraryPath, questionErrors, setErrors } from '../game/library.js'
-import { ACTIVITY_TYPES } from '../game/sets.js'
+import { useRef, useState } from 'react'
+import { WH_TYPES } from '../game/logic.js'
+import {
+  MAX_IMAGE_CHARS, MAX_IMAGE_SIDE, MAX_OPTIONS, MAX_QUESTIONS, MIN_OPTIONS, imageError, questionErrors, setErrors,
+} from '../game/library.js'
 import { Button } from '../ui.jsx'
 
-/* Editor de una actividad para la biblioteca personal del docente. Trabaja sobre
-   un borrador; nada se guarda hasta "Guardar", y "Restaurar original" borra la
-   versión personal para volver a la de la biblioteca base. */
+/* Editor de actividades de la biblioteca personal. Trabaja sobre un borrador:
+   nada se guarda hasta "Guardar".
+
+     mechanic      'choice' (opción múltiple) | 'builder' (Answer Builder)
+     questions     las preguntas con que se abre
+     titled        la actividad tiene título editable (las creadas desde cero)
+     onSave(questions, title) · onDiscard() → "Restaurar original" o "Eliminar"
+     discardLabel  el texto de ese botón; sin él, no aparece */
 
 const splitList = (text) => text.split(',').map((s) => s.trim()).filter(Boolean)
 const joinList = (items) => items.join(', ')
 
-function toDraft(q) {
-  if (isChoice(q)) return { kind: 'choice', prompt: q.prompt, options: [...q.options], correct: Math.max(0, q.options.indexOf(q.answer)) }
+function toDraft(q, mechanic) {
+  const image = q.image ?? ''
+  if (mechanic === 'choice') {
+    return { kind: 'choice', prompt: q.prompt, options: [...q.options], correct: Math.max(0, q.options.indexOf(q.answer)), image }
+  }
   return {
-    kind: 'builder', prompt: q.prompt, wh: q.wh, example: q.example ?? '',
+    kind: 'builder', prompt: q.prompt, wh: q.wh, example: q.example ?? '', image,
     subjectAccept: joinList(q.subject.accept), subjectDistractors: joinList(q.subject.distractors),
     verbAccept: joinList(q.verb.accept), verbDistractors: joinList(q.verb.distractors),
   }
 }
 
 function fromDraft(d) {
+  const image = d.image ? { image: d.image } : {}
   if (d.kind === 'choice') {
     const options = d.options.map((o) => o.trim())
-    return { prompt: d.prompt.trim(), answer: options[d.correct] ?? '', options }
+    return { prompt: d.prompt.trim(), answer: options[d.correct] ?? '', options, ...image }
   }
   return {
-    prompt: d.prompt.trim(), wh: d.wh, example: d.example.trim(),
+    prompt: d.prompt.trim(), wh: d.wh, example: d.example.trim(), ...image,
     subject: { accept: splitList(d.subjectAccept), distractors: splitList(d.subjectDistractors) },
     verb: { accept: splitList(d.verbAccept), distractors: splitList(d.verbDistractors) },
   }
 }
 
-const blank = (kind) => (kind === 'choice'
-  ? { kind, prompt: '', options: ['', '', '', ''], correct: 0 }
-  : { kind, prompt: '', wh: 'place', example: '', subjectAccept: '', subjectDistractors: '', verbAccept: '', verbDistractors: '' })
+export const blankQuestion = (mechanic) => fromDraft(mechanic === 'choice'
+  ? { kind: 'choice', prompt: '', options: ['', '', '', ''], correct: 0, image: '' }
+  : { kind: 'builder', prompt: '', wh: 'place', example: '', image: '', subjectAccept: '', subjectDistractors: '', verbAccept: '', verbDistractors: '' })
 
-export default function Editor({ store, user, base, custom, onClose }) {
-  const kind = isChoice(base.questions[0]) ? 'choice' : 'builder'
-  const [drafts, setDrafts] = useState(() => (custom ?? base).questions.map(toDraft))
+export default function Editor({ heading, subheading, mechanic, questions, titled, title: initialTitle = '', onSave, onDiscard, discardLabel, onClose }) {
+  const [drafts, setDrafts] = useState(() => questions.map((q) => toDraft(q, mechanic)))
+  const [title, setTitle] = useState(initialTitle)
   const [saving, setSaving] = useState(false)
 
   const change = (i, patch) => setDrafts((ds) => ds.map((d, j) => (j === i ? { ...d, ...patch } : d)))
@@ -51,39 +61,34 @@ export default function Editor({ store, user, base, custom, onClose }) {
     return next
   })
 
-  const questions = drafts.map(fromDraft)
-  const errors = questions.map(questionErrors)
-  const general = setErrors(questions)
+  const result = drafts.map(fromDraft)
+  const errors = result.map(questionErrors)
+  const general = [...(titled && !title.trim() ? ['Ponle un título a la actividad.'] : []), ...setErrors(result)]
   const invalid = general.length > 0 || errors.some((e) => e.length)
-  const path = `${libraryPath(user.uid)}/${base.id}`
 
   async function save() {
     setSaving(true)
     try {
-      await store.set(path, { questions, updatedAt: store.stamp() })
+      await onSave(result, title.trim())
       onClose()
     } catch (e) {
       alert(`No se pudo guardar: ${e.message}`)
       setSaving(false)
     }
   }
-  async function restore() {
-    if (!confirm('¿Volver a la versión original? Se perderán tus cambios en esta actividad.')) return
-    await store.remove(path)
-    onClose()
-  }
 
   return (
     <section className="max-w-4xl mx-auto flex flex-col gap-4 pb-28">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-slate-500">Editando tu versión de</p>
-          <h2 className="text-2xl font-black truncate">{base.courseName} · {base.ea} · {base.title}</h2>
-          <p className="text-sm text-slate-500">
-            {ACTIVITY_TYPES[base.type].name} · Los cambios son solo tuyos ({user.name}); los demás docentes siguen viendo la original.
-          </p>
+          <p className="text-sm font-bold text-slate-500">{heading}</p>
+          {titled
+            ? <input value={title} onChange={(e) => setTitle(e.target.value.slice(0, 60))} placeholder="Título de la actividad"
+                className="w-full text-2xl font-black bg-transparent border-b-2 border-slate-300 focus:border-[#0F6FD6] outline-none" />
+            : <h2 className="text-2xl font-black truncate">{initialTitle}</h2>}
+          <p className="text-sm text-slate-500">{subheading}</p>
         </div>
-        {custom && <Button variant="danger" className="!py-2 text-sm" onClick={restore}>Restaurar original</Button>}
+        {discardLabel && <Button variant="danger" className="!py-2 text-sm" onClick={async () => { if (await onDiscard()) onClose() }}>{discardLabel}</Button>}
       </div>
 
       {drafts.map((d, i) => (
@@ -91,11 +96,15 @@ export default function Editor({ store, user, base, custom, onClose }) {
           <div className="flex items-center gap-2">
             <span className="w-8 font-black text-slate-400">{i + 1}</span>
             <input value={d.prompt} onChange={(e) => change(i, { prompt: e.target.value })}
-              placeholder={kind === 'choice' ? 'Pregunta (usa ___ para el hueco)' : 'Pregunta abierta (Where did…?)'}
+              placeholder={mechanic === 'choice' ? 'Pregunta (usa ___ para el hueco)' : 'Pregunta abierta (Where did…?)'}
               className="flex-1 min-w-0 rounded-xl border-2 border-slate-200 px-3 py-2 font-bold focus:border-[#0F6FD6] outline-none" />
             <IconButton title="Subir" disabled={i === 0} onClick={() => move(i, -1)}>↑</IconButton>
             <IconButton title="Bajar" disabled={i === drafts.length - 1} onClick={() => move(i, 1)}>↓</IconButton>
             <IconButton title="Eliminar pregunta" disabled={drafts.length === 1} onClick={() => remove(i)}>🗑</IconButton>
+          </div>
+
+          <div className="pl-10">
+            <ImageField value={d.image} onChange={(image) => change(i, { image })} />
           </div>
 
           {d.kind === 'choice' ? (
@@ -153,7 +162,7 @@ export default function Editor({ store, user, base, custom, onClose }) {
       ))}
 
       {drafts.length < MAX_QUESTIONS && (
-        <button onClick={() => setDrafts((ds) => [...ds, blank(kind)])}
+        <button onClick={() => setDrafts((ds) => [...ds, toDraft(blankQuestion(mechanic), mechanic)])}
           className="rounded-2xl border-2 border-dashed border-slate-300 p-4 font-bold text-slate-500 hover:border-slate-400 hover:text-slate-700">
           + Agregar pregunta ({drafts.length} / {MAX_QUESTIONS})
         </button>
@@ -169,6 +178,71 @@ export default function Editor({ store, user, base, custom, onClose }) {
         </div>
       </div>
     </section>
+  )
+}
+
+/* Reduce la foto a MAX_IMAGE_SIDE px como máximo (en el proyector se ve igual) y la pasa a JPEG, bajando la calidad
+   hasta que entre en MAX_IMAGE_CHARS. Fondo blanco por si trae transparencia. */
+async function compressImage(file) {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  for (const quality of [0.8, 0.7, 0.6, 0.5, 0.4]) {
+    const url = canvas.toDataURL('image/jpeg', quality)
+    if (url.length <= MAX_IMAGE_CHARS) return url
+  }
+  throw new Error('La imagen es demasiado grande incluso comprimida. Prueba con otra más simple.')
+}
+
+function ImageField({ value, onChange }) {
+  const input = useRef(null)
+  const [busy, setBusy] = useState(false)
+  const pick = async (file) => {
+    if (!file) return
+    setBusy(true)
+    try {
+      onChange(await compressImage(file))
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const pasteLink = () => {
+    const url = prompt('Pega el enlace de la imagen (https://…)')?.trim()
+    if (url) onChange(url)
+  }
+
+  if (value) {
+    return (
+      <div className="flex items-start gap-3">
+        <img src={value} alt="Imagen de la pregunta" className="h-28 max-w-[14rem] object-contain rounded-lg border border-slate-200 bg-slate-50" />
+        <div className="flex flex-col gap-1 text-sm">
+          <button onClick={() => input.current.click()} className="font-bold text-[#0F6FD6] hover:underline text-left">Cambiar imagen</button>
+          <button onClick={() => onChange('')} className="font-bold text-rose-600 hover:underline text-left">Quitar imagen</button>
+          {imageError(value) == null && value.startsWith('data:') && (
+            <span className="text-xs text-slate-400">{Math.round((value.length * 3) / 4 / 1024)} KB</span>
+          )}
+        </div>
+        <input ref={input} type="file" accept="image/*" hidden onChange={(e) => pick(e.target.files[0])} />
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <button onClick={() => input.current.click()} disabled={busy} className="font-bold text-[#0F6FD6] hover:underline disabled:opacity-50">
+        {busy ? 'Procesando…' : '🖼 Agregar imagen'}
+      </button>
+      <button onClick={pasteLink} className="font-bold text-slate-500 hover:underline">🔗 Pegar enlace</button>
+      <span className="text-xs text-slate-400">Opcional · se ve en el proyector</span>
+      <input ref={input} type="file" accept="image/*" hidden onChange={(e) => pick(e.target.files[0])} />
+    </div>
   )
 }
 

@@ -150,6 +150,7 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
     body = (
       <div className="flex flex-col gap-6 pt-8">
         {state.practice && <PracticeBadge />}
+        {state.question.hasImage && <LookAtScreen />}
         <p className="text-center font-bold uppercase tracking-widest text-slate-500 text-sm">Read carefully</p>
         <Prompt text={state.question.prompt} highlightWh={state.question.kind !== 'choice'} className="text-center text-3xl" />
         <TimerBar start={state.startedAt} ms={meta.readSec * 1000} now={now} />
@@ -170,6 +171,7 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       body = (
         <>
           {state.practice && <PracticeBadge />}
+          {state.question.hasImage && <LookAtScreen />}
           {state.question.kind === 'choice'
             ? <ChoiceForm key={`${state.round}-${state.qIndex}`} question={state.question}
                 timer={<TimerBar start={state.startedAt} ms={answerMs} now={now} />} onSubmit={submit} />
@@ -297,6 +299,15 @@ function FinalPosition({ score }) {
     <Message emoji={medal} title={rank ? `Final position: #${rank}` : 'Game over'}>
       {score?.total ?? 0} points. {rank === 1 ? 'You are the champion! 👑' : 'Well done!'}
     </Message>
+  )
+}
+
+/* La imagen de la pregunta se ve solo en el proyector. */
+function LookAtScreen() {
+  return (
+    <p className="self-center mx-auto mb-3 w-fit rounded-full bg-sky-100 text-sky-800 text-sm font-black px-3 py-1">
+      👀 Look at the picture on the screen
+    </p>
   )
 }
 
