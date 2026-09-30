@@ -3,7 +3,7 @@ import { useNow, useStore, useValue } from '../net/hooks.js'
 import { STREAK_MIN, WH_TYPES, normalize } from '../game/logic.js'
 import { podiumStage } from '../game/podium.js'
 import confetti from 'canvas-confetti'
-import { Button, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar } from '../ui.jsx'
+import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
 
 /* sessionStorage y no localStorage: cada pestaña es un jugador distinto (útil
    para probar), y recargar la página conserva al mismo jugador. Si el celular
@@ -137,7 +137,7 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       <div className="flex flex-col gap-6 pt-8">
         {state.practice && <PracticeBadge />}
         <p className="text-center font-bold uppercase tracking-widest text-slate-500 text-sm">Read carefully</p>
-        <Prompt text={state.question.prompt} className="text-center text-3xl" />
+        <Prompt text={state.question.prompt} highlightWh={state.question.kind !== 'choice'} className="text-center text-3xl" />
         <TimerBar start={state.startedAt} ms={meta.readSec * 1000} now={now} />
       </div>
     )
@@ -146,7 +146,7 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
     else if (myAnswer) {
       body = (
         <Message emoji="📨" title="Answer sent!">
-          <MyChoices answer={myAnswer} />
+          <MyChoices answer={myAnswer} options={state.question.options} />
           <span className="block mt-3">Wait for the others…</span>
         </Message>
       )
@@ -156,13 +156,18 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       body = (
         <>
           {state.practice && <PracticeBadge />}
-          <AnswerForm key={`${state.round}-${state.qIndex}`} question={state.question} mode={meta.mode}
-            timer={<TimerBar start={state.startedAt} ms={answerMs} now={now} />} onSubmit={submit} />
+          {state.question.kind === 'choice'
+            ? <ChoiceForm key={`${state.round}-${state.qIndex}`} question={state.question}
+                timer={<TimerBar start={state.startedAt} ms={answerMs} now={now} />} onSubmit={submit} />
+            : <AnswerForm key={`${state.round}-${state.qIndex}`} question={state.question} mode={meta.mode}
+                timer={<TimerBar start={state.startedAt} ms={answerMs} now={now} />} onSubmit={submit} />}
         </>
       )
     }
   } else if (state.phase === 'reveal' && state.solution) {
-    body = <Result solution={state.solution} answer={myAnswer} score={score} secret={secretScore} practice={state.practice} />
+    body = state.question.kind === 'choice'
+      ? <ChoiceResult question={state.question} solution={state.solution} answer={myAnswer} score={score} secret={secretScore} practice={state.practice} />
+      : <Result solution={state.solution} answer={myAnswer} score={score} secret={secretScore} practice={state.practice} />
   } else if (state.phase === 'leaderboard') {
     body = (
       <Message emoji="📊" title={score?.rank ? `You are #${score.rank}` : 'Ranking'}>
@@ -295,7 +300,77 @@ function AnswerForm({ question, mode, timer, onSubmit }) {
   )
 }
 
-function MyChoices({ answer }) {
+/* Opción múltiple: tocar una alternativa ya es responder, como en Kahoot. */
+function ChoiceForm({ question, timer, onSubmit }) {
+  const [sent, setSent] = useState(null)
+  const choose = (choice) => {
+    if (sent) return
+    setSent(choice)
+    onSubmit({ choice })
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Prompt text={question.prompt} highlightWh={false} className="text-xl text-center" />
+        {timer}
+      </div>
+      <div className={`grid ${choiceCols(question.options)} gap-3`}>
+        {question.options.map((o, i) => {
+          const st = CHOICE_STYLES[i]
+          return (
+            <button type="button" key={o} onClick={() => choose(o)} disabled={Boolean(sent)}
+              className={`min-h-[6rem] rounded-2xl px-3 py-4 flex items-center gap-3 text-left text-white text-lg font-bold transition active:scale-95 ${st.solid} ${sent && sent !== o ? 'opacity-40' : ''}`}>
+              <span className="text-2xl shrink-0">{st.shape}</span>
+              <span className="flex-1">{o}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ChoiceResult({ question, solution, answer, score, secret, practice }) {
+  const right = Boolean(score?.parts?.[0])
+  const mine = answer ? question.options.indexOf(answer.choice) : -1
+  const correct = question.options.indexOf(solution.answer)
+  return (
+    <div className="flex flex-col gap-4 pt-4">
+      <div className="text-center">
+        <p className="text-5xl">{!answer ? '😶' : right ? '🎉' : '💪'}</p>
+        <p className="text-2xl font-black mt-2">{!answer ? 'No answer this time.' : right ? 'Correct!' : 'Not this time'}</p>
+        {secret
+          ? <p className="text-lg font-bold mt-2 text-slate-600">Points are secret until the podium 🤫</p>
+          : <p className="text-3xl font-black mt-2">+{score?.gain ?? 0}</p>}
+        {practice && (
+          <p className="text-violet-700 font-bold">Practice: these points don’t count. The real game starts at 0!</p>
+        )}
+        {score?.streak >= STREAK_MIN && (
+          <p className="mt-2 text-xl font-black text-orange-600">🔥 {score.streak} in a row!</p>
+        )}
+      </div>
+      <Prompt text={question.prompt} highlightWh={false} className="text-lg text-center" />
+      {answer && !right && mine >= 0 && (
+        <p className="rounded-2xl border-2 border-rose-300 bg-white p-3 text-center font-bold text-slate-500">
+          {CHOICE_STYLES[mine].shape} <s>{answer.choice}</s>
+        </p>
+      )}
+      <p className={`rounded-2xl p-3 text-center text-lg font-black text-white ${CHOICE_STYLES[correct]?.solid ?? 'bg-green-600'}`}>
+        ✓ {CHOICE_STYLES[correct]?.shape} {solution.answer}
+      </p>
+    </div>
+  )
+}
+
+function MyChoices({ answer, options }) {
+  if (answer.choice != null) {
+    const st = CHOICE_STYLES[options?.indexOf(answer.choice)]
+    return (
+      <span className={`inline-block rounded-lg px-3 py-1 font-bold text-white ${st?.solid ?? 'bg-slate-700'}`}>
+        {st?.shape} {answer.choice}
+      </span>
+    )
+  }
   return (
     <span className="flex flex-wrap justify-center gap-2">
       {PART_KEYS.map((k) => (

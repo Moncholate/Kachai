@@ -48,7 +48,18 @@ export function Button({ variant = 'primary', className = '', ...props }) {
   )
 }
 
-export function Prompt({ text, className = '' }) {
+/* highlightWh: colorea la wh-word (Answer Builder). Sin ella el texto va tal
+   cual, salvo los huecos "___", que se dibujan como línea para completar. */
+export function Prompt({ text, highlightWh = true, className = '' }) {
+  if (!highlightWh) {
+    return (
+      <p className={`font-extrabold text-slate-900 leading-tight ${className}`}>
+        {text.split(/(_{3,})/).map((part, i) => (/^_{3,}$/.test(part)
+          ? <span key={i} className="inline-block w-[3em] border-b-4 border-slate-400 mx-1 align-baseline" />
+          : part))}
+      </p>
+    )
+  }
   const [wh, rest] = splitWh(text)
   return (
     <p className={`font-extrabold text-slate-900 leading-tight ${className}`}>
@@ -57,6 +68,18 @@ export function Prompt({ text, className = '' }) {
     </p>
   )
 }
+
+/* Colores y figuras de las alternativas de opción múltiple (como Kahoot): la
+   figura ayuda a encontrar en el celular la misma opción que se ve proyectada. */
+export const CHOICE_STYLES = [
+  { shape: '▲', solid: 'bg-rose-600', ring: 'ring-rose-600', text: 'text-rose-700' },
+  { shape: '◆', solid: 'bg-blue-600', ring: 'ring-blue-600', text: 'text-blue-700' },
+  { shape: '●', solid: 'bg-amber-500', ring: 'ring-amber-500', text: 'text-amber-700' },
+  { shape: '■', solid: 'bg-green-600', ring: 'ring-green-600', text: 'text-green-700' },
+]
+
+/* Alternativas largas (oraciones completas) van en una columna. */
+export const choiceCols = (options) => (options.some((o) => o.length > 22) ? 'grid-cols-1' : 'grid-cols-2')
 
 export function TimerBar({ start, ms, now, className = '' }) {
   const ready = typeof start === 'number'

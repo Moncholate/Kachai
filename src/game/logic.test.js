@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildPublicQuestion, checkAnswer, nextStreak, normalize, scoreFor, splitWh, WH_TYPES } from './logic.js'
-import { COURSES, SETS, getSet } from './sets.js'
+import { buildPublicQuestion, checkAnswer, isChoice, nextStreak, normalize, scoreFor, splitWh, WH_TYPES } from './logic.js'
+import { ACTIVITY_TYPES, COURSES, SETS, getSet, sameTypeIn } from './sets.js'
 
 const q = { prompt: 'Where did María work yesterday?', wh: 'place', example: 'She worked at the hospital.',
   subject: { accept: ['María', 'She'], distractors: ['He', 'Yesterday', 'They'] },
@@ -42,8 +42,11 @@ describe('splitWh', () => {
   })
 })
 
-describe('sets', () => {
-  for (const set of SETS) {
+const builders = SETS.filter((s) => s.type === 'answer-builder')
+const choices = SETS.filter((s) => s.questions.some(isChoice))
+
+describe('Answer Builder', () => {
+  for (const set of builders) {
     for (const item of [set.practice, ...set.questions]) {
       it(`${set.id} · ${item.prompt}`, () => {
         expect(WH_TYPES[item.wh]).toBeDefined()
@@ -63,29 +66,83 @@ describe('sets', () => {
   }
 })
 
+describe('opción múltiple', () => {
+  for (const set of choices) {
+    for (const item of set.questions) {
+      it(`${set.id} · ${item.prompt} → ${item.answer}`, () => {
+        expect(isChoice(item)).toBe(true)
+        // 3 o 4 alternativas: nunca 2 (demasiado adivinable) ni más de las 4 figuras
+        expect(item.options.length).toBeGreaterThanOrEqual(3)
+        expect(item.options.length).toBeLessThanOrEqual(4)
+        expect(item.options).toContain(item.answer)
+        expect(new Set(item.options.map(normalize)).size).toBe(item.options.length)
+        const pub = buildPublicQuestion(item)
+        expect([...pub.options].sort()).toEqual([...item.options].sort())
+        expect(pub).not.toHaveProperty('answer')
+        expect(checkAnswer(item, { choice: item.answer })).toEqual([true])
+        for (const o of item.options.filter((x) => x !== item.answer)) expect(checkAnswer(item, { choice: o })).toEqual([false])
+      })
+    }
+  }
+  it('una sola parte: acertar rápido vale 1000', () => {
+    expect(scoreFor([true], 0, 20000)).toBe(1000)
+    expect(scoreFor([false], 0, 20000)).toBe(0)
+  })
+})
+
 describe('biblioteca', () => {
-  it('9 cursos, cada uno con EA1 y EA2 con preguntas', () => {
+  it('9 cursos; cada EA1 y EA2 con Answer Builder y su Exam Practice', () => {
     expect(COURSES).toHaveLength(9)
     for (const c of COURSES) {
       expect(c.eas.map((e) => e.ea)).toEqual(['EA1', 'EA2'])
-      for (const e of c.eas) expect(e.questions.length).toBeGreaterThanOrEqual(10)
+      for (const e of c.eas) expect(e.activities.slice(0, 2).map((a) => a.type)).toEqual(['answer-builder', 'exam-practice'])
+      expect(c.eas.map((e) => e.activities[1].title)).toEqual(['Midterm Practice', 'End-of-Term Practice'])
+    }
+  })
+  it('surtidas: entre 10 y 15 preguntas (15 ya es demasiado para una clase)', () => {
+    for (const s of SETS.filter((x) => x.type !== 'grammar-focus')) {
+      expect(s.questions.length).toBeGreaterThanOrEqual(10)
+      expect(s.questions.length).toBeLessThanOrEqual(15)
+    }
+  })
+  it('Grammar Focus: cortas (6 a 8) y en los cursos del semestre', () => {
+    const focus = SETS.filter((x) => x.type === 'grammar-focus')
+    for (const s of focus) {
+      expect(s.questions.length).toBeGreaterThanOrEqual(6)
+      expect(s.questions.length).toBeLessThanOrEqual(8)
+      expect(s.title).toBe(`Grammar Focus · ${s.topic}`)
+    }
+    for (const id of ['basico2', 'elemental1', 'intermedio1', 'intermedioInt']) {
+      for (const e of COURSES.find((c) => c.id === id).eas) {
+        expect(e.activities.filter((a) => a.type === 'grammar-focus').length).toBeGreaterThanOrEqual(4)
+      }
     }
   })
   it('ids únicos y sin preguntas repetidas dentro de un set', () => {
     expect(new Set(SETS.map((s) => s.id)).size).toBe(SETS.length)
-    for (const s of SETS) expect(new Set(s.questions.map((x) => x.prompt)).size).toBe(s.questions.length)
+    const key = (x) => `${x.prompt}|${x.answer ?? ''}`
+    for (const s of SETS) expect(new Set(s.questions.map(key)).size).toBe(s.questions.length)
   })
-  it('cada set practica al menos 4 tipos de wh distintos', () => {
-    for (const s of SETS) expect(new Set(s.questions.map((x) => x.wh)).size).toBeGreaterThanOrEqual(4)
+  it('cada Answer Builder practica al menos 4 tipos de wh distintos', () => {
+    for (const s of builders) expect(new Set(s.questions.map((x) => x.wh)).size).toBeGreaterThanOrEqual(4)
   })
-  it('cada set tiene su pregunta de práctica, distinta de las del juego', () => {
-    for (const s of SETS) {
+  it('al cambiar de EA se conserva el tipo de actividad', () => {
+    const ea2 = COURSES[0].eas[1]
+    expect(sameTypeIn(ea2, 'exam-practice').type).toBe('exam-practice')
+    expect(sameTypeIn(ea2, 'no-existe')).toBe(ea2.activities[0])
+  })
+  it('cada Answer Builder tiene su pregunta de práctica, distinta de las del juego', () => {
+    for (const s of builders) {
       expect(s.practice).toBeDefined()
       expect(s.questions.map((x) => x.prompt)).not.toContain(s.practice.prompt)
     }
   })
-  it('un setId viejo o desconocido cae en el primero', () => {
+  it('cada set declara un tipo de actividad conocido', () => {
+    for (const s of SETS) expect(ACTIVITY_TYPES[s.type]).toBeDefined()
+  })
+  it('un setId viejo o desconocido cae en el primero; los de antes siguen valiendo', () => {
     expect(getSet('a1')).toBe(SETS[0])
+    expect(getSet('basico1-ea2').type).toBe('answer-builder')
   })
 })
 

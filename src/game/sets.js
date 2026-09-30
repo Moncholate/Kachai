@@ -1,4 +1,12 @@
+import { mc } from './logic.js'
+import { FOCUS } from './focus.js'
+
 /* Biblioteca de actividades: curso → EA (Experiencia de Aprendizaje) → set.
+
+   Cada set es de un TIPO de actividad (su dinámica). Por ahora hay uno:
+     answer-builder   Answer Builder: ante una pregunta abierta, el alumno arma el
+                      esqueleto de la respuesta (sujeto, verbo con su tiempo y qué
+                      clase de dato pide la wh-word).
 
    Cada EA practica la gramática CLAVE (KC) de su hoja de ruta: la que entra en
    la evaluación. Lo suplementario (SC) queda fuera a propósito, y por eso los
@@ -418,13 +426,15 @@ const INTERMEDIO2_EA2 = [
 
 /* ───────────── Intensivos: 12 preguntas de sus dos cursos + KC propias ───────────── */
 
-/* Toma preguntas por su texto: si alguien edita una y la de arriba ya no
-   coincide, el test de sets lo avisa en vez de que el intensivo quede corto. */
-function pick(from, prompts) {
-  return prompts.map((p) => {
-    const q = from.find((x) => x.prompt === p)
-    if (!q) throw new Error(`sets.js: no existe la pregunta "${p}"`)
-    return q
+/* Toma preguntas por su texto (o, en opción múltiple, por su respuesta correcta,
+   porque "Choose the correct sentence." se repite). Si alguien edita una y ya
+   no coincide, o coincide con dos, falla al cargar en vez de que el intensivo
+   quede corto o con la pregunta equivocada. */
+function pick(from, keys) {
+  return keys.map((k) => {
+    const found = from.filter((x) => x.prompt === k || x.answer === k)
+    if (found.length !== 1) throw new Error(`sets.js: "${k}" coincide con ${found.length} preguntas`)
+    return found[0]
   })
 }
 
@@ -542,51 +552,320 @@ PRACTICE.basicoInt = [PRACTICE.basico1[1], PRACTICE.basico2[1]]
 PRACTICE.elementalInt = [PRACTICE.elemental1[1], PRACTICE.elemental2[1]]
 PRACTICE.intermedioInt = [PRACTICE.intermedio1[1], PRACTICE.intermedio2[1]]
 
+/* ───────────── Midterm / End-of-Term Practice ─────────────
+   Repaso general de la EA en opción múltiple (Kahoot clásico): una pregunta y
+   3–4 alternativas (nunca 2). Varios KC y varios formatos: completar el hueco, elegir la oración correcta, definición → palabra,
+   transformar, y el doble hueco, que convierte en 4 opciones lo que por
+   naturaleza es binario (bored / boring, simple / continuous).
+   Solo KC que se entienden SIN imagen: this/that, colores, comida, in/on/under,
+   clima o movimiento esperan a que las preguntas puedan llevar foto.
+
+   mc(prompt, correcta, ...trampas) vive en logic.js. */
+
+const EXAM_BASICO1_EA1 = [
+  mc('They ___ from Mexico.', 'are', 'is', 'am', 'be'),
+  mc('I ___ a student.', 'am', 'is', 'are'),
+  mc('She ___ from Spain. She’s from Italy.', 'isn’t', 'aren’t', 'not', 'don’t'),
+  mc('___ is your name?', 'What', 'Where', 'Who', 'How'),
+  mc('___ are you from?', 'Where', 'What', 'Who', 'How old'),
+  mc('fifty-four = ?', '54', '45', '14', '40'),
+  mc('She’s from Brazil. She’s ___.', 'Brazilian', 'Brazilish', 'Brazilese', 'Brazil'),
+  mc('He’s from Japan. He’s ___.', 'Japanese', 'Japanian', 'Japanish', 'Japan'),
+  mc('one watch, two ___', 'watches', 'watchs', 'watchies', 'watch'),
+  mc('Choose the correct question.', 'How old are you?', 'How old you are?', 'How old is you?', 'How many old are you?'),
+]
+
+const EXAM_BASICO1_EA2 = [
+  mc('This is Tom and ___ wife, Ana.', 'his', 'her', 'he', 'him'),
+  mc('We love ___ new house.', 'our', 'us', 'we', 'ours'),
+  mc('Choose the correct sentence.', 'This is my sister’s car.', 'This is my sister car.', 'This is my sisters car.', 'This is the car my sister.'),
+  mc('Choose the correct sentence.', 'It’s a big car.', 'It’s a car big.', 'It’s big a car.', 'It’s a bigs car.'),
+  mc('My brother ___ in a bank.', 'works', 'work', 'working', 'is work'),
+  mc('___ you like coffee?', 'Do', 'Does', 'Are', 'Is'),
+  mc('She ___ eat meat.', 'doesn’t', 'don’t', 'isn’t', 'not'),
+  mc('A person who serves food in a restaurant:', 'a waiter', 'a nurse', 'a pilot', 'a farmer'),
+  mc('A nurse works in a ___.', 'hospital', 'school', 'farm', 'bank'),
+  mc('Choose the correct sentence.', 'I always have breakfast at home.', 'I have always breakfast at home.', 'Always I have breakfast at home.', 'I have breakfast always at home.'),
+]
+
+const EXAM_BASICO2_EA1 = [
+  mc('Choose the correct question.', 'Where do you live?', 'Where you live?', 'Where live you?', 'Where does you live?'),
+  mc('Choose the correct question.', 'What time does the movie start?', 'What time the movie starts?', 'What time does the movie starts?', 'What time do the movie start?'),
+  mc('Where’s Anna? I can’t see ___.', 'her', 'she', 'his', 'they'),
+  mc('These are my books. Can you give ___ to me?', 'them', 'they', 'their', 'it'),
+  mc('Sorry, you ___ park here.', 'can’t', 'don’t', 'aren’t', 'not can'),
+  mc('Can she ___ the guitar?', 'play', 'plays', 'playing', 'to play'),
+  mc('I love ___ in the ocean.', 'swimming', 'swim', 'swims', 'to swimming'),
+  mc('Look! It ___ now.', 'is raining', 'rains', 'rain', 'raining'),
+  mc('I usually ___ to work, but today I ___ the bus.', 'walk / ’m taking', '’m walking / take', 'walk / take', '’m walking / ’m taking'),
+  mc('What ___ they doing?', 'are', 'do', 'is', 'does'),
+]
+
+const EXAM_BASICO2_EA2 = [
+  mc('There ___ two beds in the room.', 'are', 'is', 'be', 'have'),
+  mc('___ there a TV in the room?', 'Is', 'Are', 'Has', 'Does'),
+  mc('I was ___ home last night.', 'at', 'in', 'on', 'to'),
+  mc('Our room is ___ the second floor.', 'on', 'in', 'at', 'under'),
+  mc('Where ___ you yesterday?', 'were', 'was', 'did', 'are'),
+  mc('I ___ at school last Monday. I was sick.', 'wasn’t', 'weren’t', 'didn’t', 'not was'),
+  mc('go → past simple', 'went', 'goed', 'gone', 'wented'),
+  mc('study → past simple', 'studied', 'studyed', 'studid', 'studies'),
+  mc('___ you have a good weekend?', 'Did', 'Were', 'Do', 'Was'),
+  mc('We didn’t ___ a car.', 'have', 'had', 'has', 'having'),
+]
+
+const EXAM_ELEMENTAL1_EA1 = [
+  mc('___ your parents at home?', 'Are', 'Is', 'Do', 'Does'),
+  mc('The day after Tuesday is ___.', 'Wednesday', 'Thursday', 'Monday', 'Friday'),
+  mc('They love ___ dog.', 'their', 'there', 'they', 'them'),
+  mc('He has ___ apple and ___ banana.', 'an / a', 'a / an', 'a / a', 'an / an'),
+  mc('one child, two ___', 'children', 'childs', 'childrens', 'child'),
+  mc('Choose the correct sentence.', 'My car is very old.', 'My car is old very.', 'My car very is old.', 'My car is a very old.'),
+  mc('My brother ___ TV in the evening.', 'watches', 'watch', 'watchs', 'watching'),
+  mc('___ does your sister work? – In a bank.', 'Where', 'What', 'When', 'Who'),
+  mc('A person who flies planes:', 'a pilot', 'a driver', 'a waiter', 'a farmer'),
+  mc('Choose the correct question.', 'What time do you get up?', 'What time you get up?', 'What time get you up?', 'What time does you get up?'),
+]
+
+const EXAM_ELEMENTAL1_EA2 = [
+  mc('My birthday is ___ March.', 'in', 'on', 'at', 'to'),
+  mc('The class starts ___ 9 o’clock.', 'at', 'in', 'on', 'to'),
+  mc('We don’t work ___ Sundays.', 'on', 'in', 'at', 'to'),
+  mc('Choose the correct sentence.', 'She is never late.', 'She never is late.', 'Never she is late.', 'She is late never.'),
+  mc('I go to the gym three times ___ week.', 'a', 'the', 'in', 'for'),
+  mc('Shh! The baby ___.', 'is sleeping', 'sleeps', 'sleep', 'sleeping'),
+  mc('He ___ jeans every day, but today he ___ a suit.', 'wears / ’s wearing', '’s wearing / wears', 'wears / wears', '’s wearing / ’s wearing'),
+  mc('It’s very cold and there’s snow. It’s ___.', 'winter', 'summer', 'spring', 'fall'),
+  mc('I don’t like ___ up early.', 'getting', 'get', 'gets', 'to getting'),
+  mc('I ___ a shower every morning.', 'take', 'do', 'make', 'go'),
+]
+
+const EXAM_ELEMENTAL2_EA1 = [
+  mc('Where ___ you born?', 'were', 'was', 'did', 'are'),
+  mc('I saw that movie two weeks ___.', 'ago', 'last', 'before', 'yesterday'),
+  mc('We ___ to the beach last summer.', 'went', 'goed', 'go', 'gone'),
+  mc('Which word is uncountable?', 'rice', 'apple', 'egg', 'banana'),
+  mc('There aren’t ___ eggs in the fridge.', 'any', 'some', 'a', 'much'),
+  mc('There ___ a lot of people at the party last night.', 'were', 'was', 'are', 'is'),
+  mc('Go ___ the stairs to the second floor.', 'up', 'on', 'in', 'at'),
+  mc('How ___ water do you drink a day?', 'much', 'many', 'a lot', 'some'),
+  mc('How ___ apples do you want?', 'many', 'much', 'lot', 'any'),
+  mc('A train is ___ than a bus.', 'faster', 'more fast', 'fastest', 'the faster'),
+]
+
+const EXAM_ELEMENTAL2_EA2 = [
+  mc('I ___ going to visit my aunt next week.', 'am', 'is', 'are', 'be'),
+  mc('Look at those clouds! It ___ rain.', 'is going to', 'going to', 'is going', 'goes to'),
+  mc('She drives very ___.', 'carefully', 'careful', 'care', 'more careful'),
+  mc('I want ___ a new phone.', 'to buy', 'buying', 'buy', 'bought'),
+  mc('Have you ever ___ sushi?', 'eaten', 'ate', 'eat', 'eating'),
+  mc('write → past participle', 'written', 'wrote', 'writed', 'writing'),
+  mc('I ___ to Cancún in 2019.', 'went', 'have gone', 'have been', 'go'),
+  mc('___ you ever been to Brazil?', 'Have', 'Did', 'Are', 'Has'),
+  mc('I ___ Paris twice. I ___ there last year.', '’ve visited / went', 'visited / ’ve gone', '’ve visited / ’ve gone', 'visit / go'),
+  mc('You need this to open your email account:', 'a password', 'a charger', 'a battery', 'a screen'),
+]
+
+const EXAM_INTERMEDIO1_EA1 = [
+  mc('Choose the correct question.', 'How often do you go to the gym?', 'How often you go to the gym?', 'How often go you to the gym?', 'How often does you go to the gym?'),
+  mc('He’s very ___. He always smiles and says hello.', 'friendly', 'lazy', 'mean', 'rude'),
+  mc('My brother ___ glasses.', 'wears', 'carries', 'brings', 'puts'),
+  mc('The bank is ___ the pharmacy and the café.', 'between', 'next', 'in front', 'among'),
+  mc('We ___ a great time on vacation last year.', 'had', 'have', 'has', 'did have'),
+  mc('The museum opened ___ 1990.', 'in', 'on', 'at', 'since'),
+  mc('My flight leaves ___ Friday morning.', 'on', 'in', 'at', 'to'),
+  mc('What ___ you going to do this weekend?', 'are', 'do', 'will', 'is'),
+  mc('I ___ my cousins tonight. We have a table for 8 o’clock.', '’m meeting', 'meet', 'met', '’m meet'),
+  mc('It depends ___ the weather.', 'on', 'of', 'in', 'from'),
+]
+
+const EXAM_INTERMEDIO1_EA2 = [
+  mc('Have you finished your homework ___?', 'yet', 'already', 'just', 'still'),
+  mc('I’ve ___ cleaned the kitchen. It looks great!', 'already', 'yet', 'ever', 'still'),
+  mc('I ___ a new laptop last week.', 'bought', 'have bought', 'buy', 'was buy'),
+  mc('The movie was ___, so I felt ___.', 'boring / bored', 'bored / boring', 'boring / boring', 'bored / bored'),
+  mc('My city isn’t as big ___ yours.', 'as', 'than', 'like', 'that'),
+  mc('This is the ___ restaurant I’ve ever been to.', 'best', 'better', 'good', 'most good'),
+  mc('It’s the most beautiful city I’ve ever ___.', 'seen', 'saw', 'see', 'seeing'),
+  mc('Don’t worry. I think you ___ pass the exam.', 'will', 'are', 'do', 'going'),
+  mc('The opposite of “win” is ___.', 'lose', 'miss', 'fail', 'drop'),
+  mc('Life in a small town is ___ than in a big city.', 'cheaper', 'more cheap', 'cheapest', 'the cheaper'),
+]
+
+const EXAM_INTERMEDIO2_EA1 = [
+  mc('I enjoy ___ in the rain.', 'walking', 'to walk', 'walk', 'walked'),
+  mc('We decided ___ a taxi.', 'to take', 'taking', 'take', 'took'),
+  mc('You ___ smoke here. It’s forbidden.', 'mustn’t', 'don’t have to', 'have to', 'must'),
+  mc('Tomorrow is Sunday, so I ___ get up early.', 'don’t have to', 'mustn’t', 'have to', 'must'),
+  mc('If it ___ tomorrow, we’ll stay at home.', 'rains', 'will rain', 'rained', 'would rain'),
+  mc('If I had more money, I ___ a house.', 'would buy', 'will buy', 'bought', 'buy'),
+  mc('I’ve lived here ___ 2015.', 'since', 'for', 'from', 'ago'),
+  mc('She has worked here ___ ten years.', 'for', 'since', 'during', 'ago'),
+  mc('An insect that makes honey:', 'a bee', 'a butterfly', 'a spider', 'a fly'),
+  mc('She plays the piano very ___.', 'well', 'good', 'nice', 'best'),
+]
+
+const EXAM_INTERMEDIO2_EA2 = [
+  mc('They walked ___ the bridge to the other side of the river.', 'across', 'through', 'into', 'under'),
+  mc('The train went ___ a long tunnel.', 'through', 'across', 'over', 'onto'),
+  mc('Stop doing something (for example, smoking):', 'give up', 'take up', 'look up', 'turn up'),
+  mc('Start a new hobby:', 'take up', 'give up', 'look after', 'turn down'),
+  mc('I ___ play tennis when I was a child.', 'used to', 'use to', 'was used to', 'using to'),
+  mc('___ you use to walk to school?', 'Did', 'Do', 'Were', 'Used'),
+  mc('Take an umbrella. It ___ rain later.', 'might', 'might to', 'mights', 'can to'),
+  mc('Marie Curie ___ radium in 1898.', 'discovered', 'invented', 'designed', 'built'),
+  mc('The school subject where you study plants and animals:', 'biology', 'chemistry', 'geography', 'physics'),
+  mc('___ car is this? – It’s Ana’s.', 'Whose', 'Who', 'Which', 'Who’s'),
+]
+
+/* Intensivos: 10 de sus dos cursos, sin lo que ahí es SC, más sus KC propias. */
+
+const EXAM_BASICO_INT_EA1 = pick([...EXAM_BASICO1_EA1, ...EXAM_BASICO1_EA2], [
+  'They ___ from Mexico.', 'She ___ from Spain. She’s from Italy.', '___ are you from?',
+  'She’s from Brazil. She’s ___.', 'one watch, two ___', 'This is Tom and ___ wife, Ana.',
+  'My brother ___ in a bank.', 'She ___ eat meat.', 'A person who serves food in a restaurant:',
+  '___ you like coffee?',
+])
+
+const EXAM_BASICO_INT_EA2 = [
+  // "can", "object pronouns" e "in / on / at" son SC en el intensivo.
+  ...pick([...EXAM_BASICO2_EA1, ...EXAM_BASICO2_EA2], [
+    'I love ___ in the ocean.', 'Look! It ___ now.', 'What ___ they doing?',
+    'There ___ two beds in the room.', '___ there a TV in the room?', 'Where ___ you yesterday?',
+    'go → past simple', 'study → past simple', '___ you have a good weekend?',
+  ]),
+  mc('The pharmacy is ___ the bank. They are side by side.', 'next to', 'across from', 'between', 'behind'),
+]
+
+const EXAM_ELEMENTAL_INT_EA1 = pick([...EXAM_ELEMENTAL1_EA1, ...EXAM_ELEMENTAL1_EA2], [
+  // "a/an & plurals", adjetivos y el clima son SC en el intensivo.
+  '___ your parents at home?', 'They love ___ dog.', 'My brother ___ TV in the evening.',
+  '___ does your sister work? – In a bank.', 'What time do you get up?', 'My birthday is ___ March.',
+  'She is never late.', 'Shh! The baby ___.', 'He ___ jeans every day, but today he ___ a suit.',
+  'I don’t like ___ up early.',
+])
+
+const EXAM_ELEMENTAL_INT_EA2 = [
+  // "there is / was", "verbs + infinitive" y "phones and the internet" son SC.
+  ...pick([...EXAM_ELEMENTAL2_EA1, ...EXAM_ELEMENTAL2_EA2], [
+    'Where ___ you born?', 'We ___ to the beach last summer.', 'How ___ water do you drink a day?',
+    'A train is ___ than a bus.', 'Look at those clouds! It ___ rain.', 'She drives very ___.',
+    'Have you ever ___ sushi?', 'I ___ Paris twice. I ___ there last year.',
+  ]),
+  mc('It’s ___ building in the city.', 'the tallest', 'the most tall', 'taller', 'tallest'),
+  mc('This is the ___ museum in the country.', 'most famous', 'famousest', 'more famous', 'most famousest'),
+]
+
+const EXAM_INTERMEDIO_INT_EA1 = [
+  ...pick([...EXAM_INTERMEDIO1_EA1, ...EXAM_INTERMEDIO1_EA2], [
+    'He’s very ___. He always smiles and says hello.', 'We ___ a great time on vacation last year.',
+    'What ___ you going to do this weekend?', 'It depends ___ the weather.', 'Have you finished your homework ___?',
+    'I ___ a new laptop last week.', 'The movie was ___, so I felt ___.', 'This is the ___ restaurant I’ve ever been to.',
+    'Don’t worry. I think you ___ pass the exam.',
+  ]),
+  // KC propia del intensivo: make or do
+  mc('Every morning I ___ the bed and ___ the dishes.', 'make / do', 'do / make', 'make / make', 'do / do'),
+]
+
+const EXAM_INTERMEDIO_INT_EA2 = [
+  // "have to / must" y "expressing movement" son SC en el intensivo.
+  ...pick([...EXAM_INTERMEDIO2_EA1, ...EXAM_INTERMEDIO2_EA2], [
+    'I enjoy ___ in the rain.', 'If it ___ tomorrow, we’ll stay at home.', 'If I had more money, I ___ a house.',
+    'I’ve lived here ___ 2015.', 'Stop doing something (for example, smoking):', 'I ___ play tennis when I was a child.',
+    'Take an umbrella. It ___ rain later.',
+  ]),
+  // KC propias: should, orden de los phrasal verbs, past perfect
+  mc('You look tired. You ___ go to bed.', 'should', 'should to', 'shoulds', 'would to'),
+  mc('Choose the correct sentence.', 'Please turn it off.', 'Please turn off it.', 'Please it turn off.', 'Please turn it of.'),
+  mc('When we arrived, the movie ___ already started.', 'had', 'has', 'was', 'did'),
+]
+
 /* ───────────── Biblioteca ───────────── */
 
 const regular = (first) => [`Files ${first}–${first + 2}`, `Files ${first + 3}–${first + 5}`]
 const INTENSIVE_FILES = ['Files 1–6', 'Files 7–12']
 
-export const COURSES = [
+export const ACTIVITY_TYPES = {
+  'answer-builder': {
+    name: 'Answer Builder',
+    description: 'Arman la respuesta a una pregunta abierta: sujeto, verbo con su tiempo y tipo de dato que pide la WH.',
+  },
+  'exam-practice': {
+    name: 'Exam Practice',
+    names: ['Midterm Practice', 'End-of-Term Practice'], // EA1 cierra con el midterm, EA2 con el end-of-term
+    description: 'Repaso general de la EA estilo Kahoot: varios contenidos KC, 3–4 alternativas por pregunta.',
+  },
+  'grammar-focus': {
+    name: 'Grammar Focus',
+    description: 'Un solo contenido KC, con distintos formatos de pregunta. Corta: 6 preguntas.',
+  },
+}
+
+/* Cada EA: [files, temas, Answer Builder, Exam Practice] */
+const RAW = [
   { id: 'basico1', level: 'Básico', label: 'I', name: 'Básico I', book: 'American English File Starter A',
-    eas: [[regular(1)[0], 'Verb be · Wh- questions with be · This, that, these, those', BASICO1_EA1],
-          [regular(1)[1], 'Possessives · Adjectives · Simple present · Adverbs of frequency', BASICO1_EA2]] },
+    eas: [[regular(1)[0], 'Verb be · Wh- questions with be · Nationalities · Plurals', BASICO1_EA1, EXAM_BASICO1_EA1],
+          [regular(1)[1], 'Possessives · Adjectives · Simple present · Adverbs of frequency', BASICO1_EA2, EXAM_BASICO1_EA2]] },
   { id: 'basico2', level: 'Básico', label: 'II', name: 'Básico II', book: 'American English File Starter B',
-    eas: [[regular(7)[0], 'Word order in questions · Can · Like + -ing · Present continuous vs simple', BASICO2_EA1],
-          [regular(7)[1], 'There is / are · Simple past: be, regular and irregular', BASICO2_EA2]] },
+    eas: [[regular(7)[0], 'Word order in questions · Can · Like + -ing · Present continuous vs simple', BASICO2_EA1, EXAM_BASICO2_EA1],
+          [regular(7)[1], 'There is / are · Simple past: be, regular and irregular', BASICO2_EA2, EXAM_BASICO2_EA2]] },
   { id: 'basicoInt', level: 'Básico', label: 'Intensivo', name: 'Básico Intensivo', book: 'American English File Starter',
-    eas: [[INTENSIVE_FILES[0], 'Verb be · Possessives · Simple present · Adverbs of frequency', BASICO_INT_EA1],
-          [INTENSIVE_FILES[1], 'Present continuous · There is / are · Simple past · Directions', BASICO_INT_EA2]] },
+    eas: [[INTENSIVE_FILES[0], 'Verb be · Possessives · Simple present · Adverbs of frequency', BASICO_INT_EA1, EXAM_BASICO_INT_EA1],
+          [INTENSIVE_FILES[1], 'Present continuous · There is / are · Simple past · Directions', BASICO_INT_EA2, EXAM_BASICO_INT_EA2]] },
   { id: 'elemental1', level: 'Elemental', label: 'I', name: 'Elemental I', book: 'American English File 1A',
-    eas: [[regular(1)[0], 'Verb be · Simple present · Word order in questions', ELEMENTAL1_EA1],
-          [regular(1)[1], 'Adverbs of frequency · Present continuous vs simple · Like + -ing', ELEMENTAL1_EA2]] },
+    eas: [[regular(1)[0], 'Verb be · Simple present · Word order in questions', ELEMENTAL1_EA1, EXAM_ELEMENTAL1_EA1],
+          [regular(1)[1], 'Adverbs of frequency · Present continuous vs simple · Like + -ing', ELEMENTAL1_EA2, EXAM_ELEMENTAL1_EA2]] },
   { id: 'elemental2', level: 'Elemental', label: 'II', name: 'Elemental II', book: 'American English File 1B',
-    eas: [[regular(7)[0], 'Simple past · There was / were · How much / many · Comparatives', ELEMENTAL2_EA1],
-          [regular(7)[1], 'Be going to · Adverbs · Verbs + infinitive · Present perfect vs past', ELEMENTAL2_EA2]] },
+    eas: [[regular(7)[0], 'Simple past · There was / were · How much / many · Comparatives', ELEMENTAL2_EA1, EXAM_ELEMENTAL2_EA1],
+          [regular(7)[1], 'Be going to · Adverbs · Verbs + infinitive · Present perfect vs past', ELEMENTAL2_EA2, EXAM_ELEMENTAL2_EA2]] },
   { id: 'elementalInt', level: 'Elemental', label: 'Intensivo', name: 'Elemental Intensivo', book: 'American English File 1',
-    eas: [[INTENSIVE_FILES[0], 'Verb be · Simple present · Present continuous · Like + -ing', ELEMENTAL_INT_EA1],
-          [INTENSIVE_FILES[1], 'Simple past · Comparatives · Be going to · Present perfect', ELEMENTAL_INT_EA2]] },
+    eas: [[INTENSIVE_FILES[0], 'Verb be · Simple present · Present continuous · Like + -ing', ELEMENTAL_INT_EA1, EXAM_ELEMENTAL_INT_EA1],
+          [INTENSIVE_FILES[1], 'Simple past · Comparatives · Be going to · Present perfect', ELEMENTAL_INT_EA2, EXAM_ELEMENTAL_INT_EA2]] },
   { id: 'intermedio1', level: 'Intermedio', label: 'I', name: 'Intermedio I', book: 'American English File 2A',
-    eas: [[regular(1)[0], 'Simple present · Simple past · Going to · Present continuous (future)', INTERMEDIO1_EA1],
-          [regular(1)[1], 'Present perfect vs past · Comparatives · Will / won’t', INTERMEDIO1_EA2]] },
+    eas: [[regular(1)[0], 'Simple present · Simple past · Going to · Present continuous (future)', INTERMEDIO1_EA1, EXAM_INTERMEDIO1_EA1],
+          [regular(1)[1], 'Present perfect vs past · Comparatives · Will / won’t', INTERMEDIO1_EA2, EXAM_INTERMEDIO1_EA2]] },
   { id: 'intermedio2', level: 'Intermedio', label: 'II', name: 'Intermedio II', book: 'American English File 2B',
-    eas: [[regular(7)[0], 'Infinitive / gerund · Have to · Conditionals · Present perfect + for / since', INTERMEDIO2_EA1],
-          [regular(7)[1], 'Movement · Phrasal verbs · Used to · Might', INTERMEDIO2_EA2]] },
+    eas: [[regular(7)[0], 'Infinitive / gerund · Have to · Conditionals · Present perfect + for / since', INTERMEDIO2_EA1, EXAM_INTERMEDIO2_EA1],
+          [regular(7)[1], 'Movement · Phrasal verbs · Used to · Might', INTERMEDIO2_EA2, EXAM_INTERMEDIO2_EA2]] },
   { id: 'intermedioInt', level: 'Intermedio', label: 'Intensivo', name: 'Intermedio Intensivo', book: 'American English File 2',
-    eas: [[INTENSIVE_FILES[0], 'Simple past · Going to · Present perfect · Will / won’t', INTERMEDIO_INT_EA1],
-          [INTENSIVE_FILES[1], 'Conditionals · Should · Used to · Might · Past perfect', INTERMEDIO_INT_EA2]] },
-].map((c) => ({
+    eas: [[INTENSIVE_FILES[0], 'Simple past · Going to · Present perfect · Will / won’t', INTERMEDIO_INT_EA1, EXAM_INTERMEDIO_INT_EA1],
+          [INTENSIVE_FILES[1], 'Conditionals · Should · Used to · Might · Past perfect', INTERMEDIO_INT_EA2, EXAM_INTERMEDIO_INT_EA2]] },
+]
+
+const slug = (text) => text.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+/* Curso → EA → actividades. El id de Answer Builder no lleva sufijo porque es el
+   que ya guardaban las salas abiertas antes de que hubiera más de un tipo. */
+export const COURSES = RAW.map((c) => ({
   ...c,
-  eas: c.eas.map(([files, topics, questions], i) => ({
-    id: `${c.id}-ea${i + 1}`, ea: `EA${i + 1}`, course: c.id,
-    name: `${c.name} · EA${i + 1}`, files, topics, questions, practice: PRACTICE[c.id][i],
-  })),
+  eas: c.eas.map(([files, topics, builder, exam], i) => {
+    const ea = `EA${i + 1}`
+    const base = { ea, course: c.id, files, topics }
+    return {
+      ea, files, topics,
+      activities: [
+        { ...base, id: `${c.id}-ea${i + 1}`, type: 'answer-builder', title: ACTIVITY_TYPES['answer-builder'].name,
+          questions: builder, practice: PRACTICE[c.id][i] },
+        { ...base, id: `${c.id}-ea${i + 1}-exam`, type: 'exam-practice', title: ACTIVITY_TYPES['exam-practice'].names[i],
+          questions: exam },
+        ...(FOCUS[c.id]?.[i] ?? []).map((f) => ({
+          ...base, id: `${c.id}-ea${i + 1}-focus-${slug(f.topic)}`, type: 'grammar-focus',
+          title: `${ACTIVITY_TYPES['grammar-focus'].name} · ${f.topic}`, topic: f.topic, questions: f.questions,
+        })),
+      ],
+    }
+  }),
 }))
 
 export const LEVELS = [...new Set(COURSES.map((c) => c.level))]
 
-export const SETS = COURSES.flatMap((c) => c.eas)
+export const SETS = COURSES.flatMap((c) => c.eas.flatMap((e) => e.activities))
 
 export const getSet = (id) => SETS.find((s) => s.id === id) ?? SETS[0]
 
 export const courseOf = (set) => COURSES.find((c) => c.id === set.course)
+
+export const eaOf = (set) => courseOf(set).eas.find((e) => e.activities.includes(set))
+
+/* Al cambiar de curso o de EA se conserva el tipo de actividad si existe allí. */
+export const sameTypeIn = (ea, type) => ea.activities.find((a) => a.type === type) ?? ea.activities[0]

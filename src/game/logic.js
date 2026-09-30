@@ -38,11 +38,22 @@ export function shuffle(list, rand = Math.random) {
   return a
 }
 
+/* Dos mecánicas, reconocibles por la forma de la pregunta:
+     armar            { subject, verb, wh }: sujeto + verbo + tipo de dato (Answer Builder)
+     opción múltiple  { options, answer }: 1 entre 3–4 alternativas (Exam Practice, Grammar Mix) */
+export const isChoice = (q) => Array.isArray(q.options)
+
+/* Pregunta de opción múltiple: mc(prompt, correcta, ...trampas). El orden da
+   igual: el profesor baraja las alternativas al lanzarla. */
+export const mc = (prompt, answer, ...wrong) => ({ prompt, answer, options: [answer, ...wrong] })
+
 /* Lo que ven los celulares: opciones barajadas, SIN la solución. La barajada la
    hace el profesor una vez, así todos ven el mismo orden. */
 export function buildPublicQuestion(q, rand = Math.random) {
+  if (isChoice(q)) return { kind: 'choice', prompt: q.prompt, options: shuffle(q.options, rand) }
   const whOthers = shuffle(Object.keys(WH_TYPES).filter((k) => k !== q.wh), rand).slice(0, 3)
   return {
+    kind: 'builder',
     prompt: q.prompt,
     subjectOptions: shuffle([...q.subject.accept, ...q.subject.distractors], rand),
     verbOptions: shuffle([...q.verb.accept, ...q.verb.distractors], rand),
@@ -51,11 +62,13 @@ export function buildPublicQuestion(q, rand = Math.random) {
 }
 
 export function solutionOf(q) {
+  if (isChoice(q)) return { answer: q.answer }
   return { subject: q.subject.accept, verb: q.verb.accept, wh: q.wh, example: q.example ?? null }
 }
 
-/* → [sujeto, verbo, wh] como booleanos */
+/* → partes acertadas como booleanos: [sujeto, verbo, wh] o [alternativa] */
 export function checkAnswer(q, answer) {
+  if (isChoice(q)) return [answer?.choice === q.answer]
   return [
     matches(q.subject.accept, answer?.subject),
     matches(q.verb.accept, answer?.verb),
@@ -63,16 +76,17 @@ export function checkAnswer(q, answer) {
   ]
 }
 
-/* Como Kahoot: cada parte correcta vale un tercio, y la rapidez multiplica entre
+/* Como Kahoot: cada parte correcta vale su fracción, y la rapidez multiplica entre
    ×1 (al instante) y ×0,5 (en el último segundo). Todo correcto y rápido = 1000. */
 export function scoreFor(parts, elapsedMs, answerMs) {
   const correct = parts.filter(Boolean).length
   if (!correct) return 0
   const t = Math.min(Math.max(elapsedMs, 0), answerMs) / answerMs
-  return Math.round((MAX_POINTS * correct / 3) * (1 - t / 2))
+  return Math.round((MAX_POINTS * correct / parts.length) * (1 - t / 2))
 }
 
-/* Racha: preguntas SEGUIDAS con las tres partes bien. Una parte mal (o no
+/* Racha: preguntas SEGUIDAS enteras bien (las tres partes, o la alternativa
+   correcta). Una parte mal (o no
    responder) la corta. Desde STREAK_MIN se luce con 🔥 junto al nombre. */
 export const STREAK_MIN = 3
 

@@ -2,9 +2,9 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useValue } from '../net/hooks.js'
-import { COURSES, LEVELS, SETS, courseOf, getSet } from '../game/sets.js'
+import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, eaOf, getSet, sameTypeIn } from '../game/sets.js'
 import { WH_TYPES, buildPublicQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
-import { Button, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar } from '../ui.jsx'
+import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
 import { getSound } from './sound.js'
 import { podiumStage } from '../game/podium.js'
 import confetti from 'canvas-confetti'
@@ -105,12 +105,17 @@ function HostRoom({ store, pin }) {
     const q = questionAt(state.qIndex)
     const got = (await store.get(`${base}/answers/${state.qIndex}`)) || {}
     const answerMs = meta.answerSec * 1000
-    const stats = { answered: 0, subject: 0, verb: 0, wh: 0 }
+    const choice = state.question.kind === 'choice'
+    /* La opción múltiple cuenta votos por alternativa (en el orden que se proyectó):
+       las opciones llevan "/" o "." y no sirven como claves en la base. */
+    const stats = choice
+      ? { answered: 0, correct: 0, votes: state.question.options.map(() => 0) }
+      : { answered: 0, subject: 0, verb: 0, wh: 0 }
     const nextScores = {}
     for (const id of Object.keys(players)) {
       const a = got[id]
       const before = scores[id]?.total || 0
-      let parts = [false, false, false]
+      let parts = choice ? [false] : [false, false, false]
       let gain = 0
       if (a) {
         const elapsed = a.at - state.startedAt
@@ -119,7 +124,13 @@ function HostRoom({ store, pin }) {
           gain = scoreFor(parts, elapsed, answerMs)
         }
         stats.answered++
-        PART_KEYS.forEach((k, i) => { if (parts[i]) stats[k]++ })
+        if (choice) {
+          const i = state.question.options.indexOf(a.choice)
+          if (i >= 0) stats.votes[i]++
+          if (parts[0]) stats.correct++
+        } else {
+          PART_KEYS.forEach((k, i) => { if (parts[i]) stats[k]++ })
+        }
       }
       nextScores[id] = {
         total: state.practice ? before : before + gain, gain, parts, answered: Boolean(a),
@@ -251,7 +262,8 @@ function HostRoom({ store, pin }) {
               {state.practice && <span className="block text-violet-600">Practice question</span>}
               {state.phase === 'reading' ? 'Read the question…' : 'Answer on your phone!'}
             </p>
-            <Prompt text={state.question.prompt} className="text-center text-5xl md:text-7xl" />
+            <Prompt text={state.question.prompt} highlightWh={state.question.kind !== 'choice'}
+              className="text-center text-5xl md:text-7xl" />
             <TimerBar
               start={state.startedAt}
               ms={(state.phase === 'reading' ? meta.readSec : meta.answerSec) * 1000}
@@ -260,9 +272,13 @@ function HostRoom({ store, pin }) {
             />
             {state.phase === 'answering' && (
               <>
-                <div className="flex justify-center gap-3">
-                  {PART_KEYS.map((k) => <RoleTag key={k} part={k} className="text-base px-3 py-1" />)}
-                </div>
+                {state.question.kind === 'choice'
+                  ? <ChoiceTiles options={state.question.options} />
+                  : (
+                    <div className="flex justify-center gap-3">
+                      {PART_KEYS.map((k) => <RoleTag key={k} part={k} className="text-base px-3 py-1" />)}
+                    </div>
+                  )}
                 <p className="text-center text-2xl text-slate-600">
                   <b className="text-slate-900 text-4xl tabular-nums">{answeredCount}</b> / {activeIds.length} answered
                 </p>
@@ -321,7 +337,9 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
   const setMeta = (patch) => store.update(`${base}/meta`, patch)
   const set = getSet(meta.setId)
   const course = courseOf(set)
-  const eaIndex = course.eas.indexOf(set)
+  const ea = eaOf(set)
+  const eaIndex = course.eas.indexOf(ea)
+  const focusList = ea.activities.filter((a) => a.type === 'grammar-focus')
   const list = Object.entries(players).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0))
 
   return (
@@ -342,7 +360,7 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
                 <Fragment key={level}>
                   <span className="text-sm font-bold text-slate-500 pr-1">{level}</span>
                   {COURSES.filter((c) => c.level === level).map((c) => (
-                    <button key={c.id} onClick={() => setMeta({ setId: c.eas[eaIndex].id })}
+                    <button key={c.id} onClick={() => setMeta({ setId: sameTypeIn(c.eas[eaIndex], set.type).id })}
                       className={`min-w-0 rounded-xl border-2 px-1 py-2 text-sm sm:text-base font-bold transition ${course.id === c.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
                       {c.label}
                     </button>
@@ -353,23 +371,57 @@ function Lobby({ store, base, pin, meta, players, online, onKick, onStart }) {
           </Field>
           <Field label={`Experiencia de aprendizaje · ${course.book}`}>
             <div className="grid sm:grid-cols-2 gap-2">
-              {course.eas.map((s) => (
-                <button key={s.id} onClick={() => setMeta({ setId: s.id })}
-                  className={`rounded-xl border-2 p-3 text-left transition ${set.id === s.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                  <span className="block font-bold">{s.ea} <span className="font-normal text-slate-500">· {s.files}</span></span>
-                  <span className="block text-xs text-slate-500">{s.topics} · {s.questions.length} preguntas</span>
+              {course.eas.map((e) => (
+                <button key={e.ea} onClick={() => setMeta({ setId: sameTypeIn(e, set.type).id })}
+                  className={`rounded-xl border-2 p-3 text-left transition ${ea === e ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <span className="block font-bold">{e.ea} <span className="font-normal text-slate-500">· {e.files}</span></span>
+                  <span className="block text-xs text-slate-500">{e.topics}</span>
                 </button>
               ))}
             </div>
           </Field>
-          <Field label="Pregunta de práctica al inicio (no suma puntos)">
-            <Segmented value={meta.practice !== false} onChange={(practice) => setMeta({ practice })}
-              options={[[true, 'Sí'], [false, 'No']]} />
+          <Field label="Actividad">
+            <div className="grid sm:grid-cols-2 gap-2">
+              {ea.activities.filter((a) => a.type !== 'grammar-focus').map((a) => (
+                <button key={a.id} onClick={() => setMeta({ setId: a.id })}
+                  className={`rounded-xl border-2 p-3 text-left transition ${set.id === a.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <span className="block font-bold">
+                    {a.title} <span className="font-normal text-slate-500">· {a.questions.length} preguntas</span>
+                  </span>
+                  <span className="block text-xs text-slate-500">{ACTIVITY_TYPES[a.type].description}</span>
+                </button>
+              ))}
+            </div>
+            {/* Los Grammar Focus pueden ser muchos (el intensivo junta dos cursos): van como lista compacta de temas. */}
+            {focusList.length > 0 && (
+              <div className={`mt-2 rounded-xl border-2 p-3 transition ${set.type === 'grammar-focus' ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200'}`}>
+                <p className="font-bold">
+                  {ACTIVITY_TYPES['grammar-focus'].name}
+                  <span className="font-normal text-slate-500"> · un contenido, {focusList[0].questions.length} preguntas</span>
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {focusList.map((a) => (
+                    <button key={a.id} onClick={() => setMeta({ setId: a.id })}
+                      className={`rounded-full border px-3 py-1 text-sm font-bold transition ${set.id === a.id ? 'bg-[#0F6FD6] border-[#0F6FD6] text-white' : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'}`}>
+                      {a.topic}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </Field>
-          <Field label="Sujeto y verbo">
-            <Segmented value={meta.mode} onChange={(mode) => setMeta({ mode })}
-              options={[['select', 'Elegir de una lista'], ['write', 'Escribirlos']]} />
-          </Field>
+          {set.practice && (
+            <Field label="Pregunta de práctica al inicio (no suma puntos)">
+              <Segmented value={meta.practice !== false} onChange={(practice) => setMeta({ practice })}
+                options={[[true, 'Sí'], [false, 'No']]} />
+            </Field>
+          )}
+          {set.type === 'answer-builder' && (
+            <Field label="Sujeto y verbo">
+              <Segmented value={meta.mode} onChange={(mode) => setMeta({ mode })}
+                options={[['select', 'Elegir de una lista'], ['write', 'Escribirlos']]} />
+            </Field>
+          )}
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Tiempo de lectura">
               <Segmented value={meta.readSec} onChange={(readSec) => setMeta({ readSec })}
@@ -454,6 +506,7 @@ function Segmented({ value, onChange, options }) {
 }
 
 function Reveal({ state, isLast, ranking, onNext }) {
+  if (state.question.kind === 'choice') return <ChoiceReveal state={state} isLast={isLast} ranking={ranking} onNext={onNext} />
   const { solution, stats } = state
   const pct = (k) => (stats.answered ? Math.round((stats[k] / stats.answered) * 100) : 0)
   const shown = {
@@ -484,9 +537,54 @@ function Reveal({ state, isLast, ranking, onNext }) {
       <p className="text-center text-slate-500">{stats.answered} answers</p>
       {state.practice && <PracticePoints ranking={ranking} />}
       <div className="flex justify-center">
-        <Button onClick={onNext}>
-          {state.practice ? '¡Ahora sí, a jugar! →' : isLast ? 'Ver podio 🏆' : 'Ver ranking →'}
-        </Button>
+        <Button onClick={onNext}>{nextLabel(state, isLast)}</Button>
+      </div>
+    </section>
+  )
+}
+
+const nextLabel = (state, isLast) => (state.practice ? '¡Ahora sí, a jugar! →' : isLast ? 'Ver podio 🏆' : 'Ver ranking →')
+
+/* Opción múltiple en el proyector: las alternativas con su color y figura, igual
+   que en los celulares. Al revelar se marca la correcta y cuántos eligió cada una. */
+function ChoiceTiles({ options, answer, votes }) {
+  const revealed = answer != null
+  const total = votes ? votes.reduce((a, b) => a + b, 0) : 0
+  return (
+    <div className={`grid ${choiceCols(options)} gap-3 max-w-5xl w-full mx-auto`}>
+      {options.map((o, i) => {
+        const st = CHOICE_STYLES[i]
+        const right = o === answer
+        return (
+          <div key={o}
+            className={`relative overflow-hidden rounded-2xl px-5 py-4 flex items-center gap-4 text-white text-2xl md:text-3xl font-bold transition ${st.solid} ${revealed && !right ? 'opacity-35' : ''} ${revealed && right ? 'ring-8 ring-green-300' : ''}`}>
+            <span className="text-3xl shrink-0">{st.shape}</span>
+            <span className="flex-1">{o}</span>
+            {revealed && right && <span className="text-3xl">✓</span>}
+            {votes && <span className="rounded-full bg-white/25 px-3 text-xl tabular-nums">{votes[i]}</span>}
+            {votes && total > 0 && (
+              <span className="absolute left-0 bottom-0 h-1.5 bg-white/70" style={{ width: `${(votes[i] / total) * 100}%` }} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ChoiceReveal({ state, isLast, ranking, onNext }) {
+  const { solution, stats } = state
+  const pct = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0
+  return (
+    <section className="flex flex-col gap-8 pt-4">
+      <Prompt text={state.question.prompt} highlightWh={false} className="text-center text-4xl md:text-5xl" />
+      <ChoiceTiles options={state.question.options} answer={solution.answer} votes={stats.votes} />
+      <p className="text-center text-2xl text-slate-600">
+        <b className="text-slate-900">{pct}%</b> correct · {stats.answered} answers
+      </p>
+      {state.practice && <PracticePoints ranking={ranking} />}
+      <div className="flex justify-center">
+        <Button onClick={onNext}>{nextLabel(state, isLast)}</Button>
       </div>
     </section>
   )
