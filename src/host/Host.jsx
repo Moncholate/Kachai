@@ -5,7 +5,7 @@ import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
 import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } from '../game/sets.js'
 import { WH_TYPES, buildPublicQuestion, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
-import { getSound } from './sound.js'
+import { answeringTrack, getSound } from './sound.js'
 import Editor, { blankQuestion } from './Editor.jsx'
 import {
   applyLibrary, customIndexPath, customQuestionsPath, customSet, isCustomId, libraryPath, newCustomId,
@@ -222,7 +222,7 @@ function HostRoom({ store, pin }) {
   const stage = podiumStage(state?.phase === 'end' ? state.startedAt : null, now)
   const track = state?.phase === 'end'
     ? (stage.first ? 'podium' : null) // la fanfarria llega con el primer lugar
-    : ({ lobby: 'lobby', answering: 'answering' }[state?.phase] ?? null)
+    : ({ lobby: 'lobby', answering: answeringTrack(state?.round, state?.qIndex) }[state?.phase] ?? null)
   useEffect(() => { getSound().play(track) }, [track])
   useEffect(() => () => { getSound().play(null) }, [])
 

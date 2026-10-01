@@ -7,9 +7,19 @@
 
 const TRACKS = {
   lobby: { file: 'lobby.ogg', loop: true },
-  answering: { file: 'answering.ogg', loop: true },
+  answering: { file: 'answering.ogg', loop: true }, // Tick Tack Minigame
+  answering2: { file: 'answering-2.ogg', loop: true }, // Clockwork Groove
+  answering3: { file: 'answering-3.ogg', loop: true }, // Village Quest
+  answering4: { file: 'answering-4.ogg', loop: true }, // Ticking Pulse
   podium: { file: 'podium.ogg', loop: false },
 }
+
+/* Temas para responder, en rotación: cada pregunta cambia de tema y nunca
+   repite el de la anterior. Todos a 116 BPM y al mismo volumen (−15 LUFS),
+   cortados en loop con tools/make-loop.mjs. */
+export const ANSWERING_TRACKS = ['answering', 'answering2', 'answering3', 'answering4']
+export const answeringTrack = (round, qIndex) =>
+  ANSWERING_TRACKS[(((round || 0) + qIndex + 1) % ANSWERING_TRACKS.length + ANSWERING_TRACKS.length) % ANSWERING_TRACKS.length]
 /* Efectos de Suno, cortos y de una sola vez: van directo al master, sin fundidos. */
 const EFFECTS = {
   question: 'question.ogg', // aparece la pregunta (empieza la lectura)

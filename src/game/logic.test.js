@@ -170,3 +170,16 @@ describe('resumen final', () => {
     expect(reviewQuestion(q)).toEqual(q)
   })
 })
+
+describe('música de responder', () => {
+  it('rota: ninguna pregunta repite el tema de la anterior, y cada juego parte distinto', async () => {
+    const { answeringTrack, ANSWERING_TRACKS } = await import('../host/sound.js')
+    const game = (round) => Array.from({ length: 11 }, (_, i) => answeringTrack(round, i - 1)) // incluye la de práctica
+    for (const round of [1, 2, 3]) {
+      const tracks = game(round)
+      for (let i = 1; i < tracks.length; i++) expect(tracks[i]).not.toBe(tracks[i - 1])
+      expect(new Set(tracks).size).toBe(ANSWERING_TRACKS.length)
+    }
+    expect(game(1)[1]).not.toBe(game(2)[1])
+  })
+})
