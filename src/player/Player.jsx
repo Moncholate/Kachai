@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNow, useStore, useValue } from '../net/hooks.js'
-import { STREAK_MIN, WH_TYPES, normalize } from '../game/logic.js'
+import { STREAK_MIN, WH_TYPES, historyKey, isChoice, normalize } from '../game/logic.js'
+import { normalizeQuestion } from '../game/library.js'
 import { podiumStage } from '../game/podium.js'
 import { TEAM_MAX, membersOf, mvpOf, presetOf, teamIdsOf, teamRanking } from '../game/teams.js'
 import confetti from 'canvas-confetti'
@@ -200,10 +201,14 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
   } else if (state.phase === 'end') {
     // Mismo guion que el proyector: el puesto no se ve aquí antes que en la pantalla.
     body = podiumStage(state.startedAt, now).rest
-      ? (myTeam
-        ? <TeamFinalPosition team={myTeam} place={myTeamPlace} total={teamRank[myTeamPlace - 1]?.total ?? 0}
-            mvp={mvpOf(players, scores)?.id === pid} />
-        : <FinalPosition score={score} />)
+      ? (
+        <EndTabs review={state.review} history={score?.history}>
+          {myTeam
+            ? <TeamFinalPosition team={myTeam} place={myTeamPlace} total={teamRank[myTeamPlace - 1]?.total ?? 0}
+                mvp={mvpOf(players, scores)?.id === pid} />
+            : <FinalPosition score={score} />}
+        </EndTabs>
+      )
       : <Message emoji="👀" title="Look at the screen!">The podium is being revealed…</Message>
   }
 
@@ -299,6 +304,89 @@ function FinalPosition({ score }) {
     <Message emoji={medal} title={rank ? `Final position: #${rank}` : 'Game over'}>
       {score?.total ?? 0} points. {rank === 1 ? 'You are the champion! 👑' : 'Well done!'}
     </Message>
+  )
+}
+
+/* Al terminar: el puesto, y una pestaña de repaso con cada pregunta. */
+function EndTabs({ review, history, children }) {
+  const [tab, setTab] = useState('result')
+  const questions = review
+    ? (Array.isArray(review) ? review : Object.values(review)).map((q) => ({ ...normalizeQuestion(q), hasImage: q.hasImage }))
+    : []
+  return (
+    <div className="flex flex-col gap-4 pt-2">
+      {questions.length > 0 && (
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+          {[['result', '🏆 Result'], ['review', '📋 Review my answers']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)}
+              className={`rounded-lg py-2 text-sm font-bold transition ${tab === id ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {tab === 'review' && questions.length > 0 ? <Review questions={questions} history={history} /> : children}
+    </div>
+  )
+}
+
+function Review({ questions, history }) {
+  const rows = questions.map((q, i) => ({ q, h: history?.[historyKey(i)] }))
+  const right = rows.filter(({ h }) => h?.parts?.every(Boolean)).length
+  const points = rows.reduce((sum, { h }) => sum + (h?.gain || 0), 0)
+  return (
+    <div className="flex flex-col gap-3 pb-6">
+      <p className="text-center">
+        <span className="text-2xl font-black">{right} / {rows.length}</span>
+        <span className="text-slate-500"> fully correct · {points} points</span>
+      </p>
+      {rows.map(({ q, h }, i) => <ReviewItem key={i} n={i + 1} q={q} h={h} />)}
+    </div>
+  )
+}
+
+function ReviewItem({ n, q, h }) {
+  const parts = h?.parts ? (Array.isArray(h.parts) ? h.parts : Object.values(h.parts)) : []
+  const all = parts.length > 0 && parts.every(Boolean)
+  const some = parts.some(Boolean)
+  const a = h?.answer
+  const tone = !a ? 'border-slate-300' : all ? 'border-green-500' : some ? 'border-amber-400' : 'border-rose-300'
+  return (
+    <article className={`rounded-2xl border-2 bg-white p-3 flex flex-col gap-2 ${tone}`}>
+      <div className="flex items-start gap-2">
+        <span className="font-black text-slate-400">{n}</span>
+        <Prompt text={q.prompt} highlightWh={!isChoice(q)} className="flex-1 text-base" />
+        <span className="text-xl">{!a ? '😶' : all ? '✅' : some ? '🟡' : '❌'}</span>
+      </div>
+      {q.hasImage && <p className="text-xs text-slate-500">📷 This question had a picture on the screen.</p>}
+      {!a && <p className="text-sm text-slate-500">No answer.</p>}
+      {isChoice(q) ? (
+        <div className="text-sm flex flex-col gap-1">
+          {a && !all && <p className="text-slate-500">Your answer: <s>{a.choice}</s></p>}
+          <p className="font-bold text-green-700">✓ {q.answer}</p>
+        </div>
+      ) : (
+        <div className="text-sm flex flex-col gap-1">
+          {PART_KEYS.map((k, i) => {
+            const correct = k === 'wh' ? WH_TYPES[q.wh] : q[k].accept.join(' / ')
+            const given = a && (k === 'wh' ? WH_TYPES[a.wh] : a[k])
+            return (
+              <p key={k} className="flex flex-wrap items-center gap-1.5">
+                <RoleTag part={k} />
+                {a && parts[i] ? <b className={ROLES[k].text}>{given} ✓</b> : (
+                  <>
+                    {given && <s className="text-slate-400">{given}</s>}
+                    <b className={ROLES[k].text}>{correct}</b>
+                  </>
+                )}
+              </p>
+            )
+          })}
+          {q.example && <p className="text-slate-500">Possible answer: <i className="text-slate-800">“{q.example}”</i></p>}
+        </div>
+      )}
+      {h?.gain > 0 && <p className="text-right text-sm font-black text-slate-600">+{h.gain}</p>}
+    </article>
   )
 }
 

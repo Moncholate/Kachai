@@ -88,6 +88,25 @@ export function scoreFor(parts, elapsedMs, answerMs) {
   return Math.round((MAX_POINTS * correct / parts.length) * (1 - t / 2))
 }
 
+/* Resumen final de cada alumno. Por pregunta se guarda en su puntaje qué
+   respondió, qué partes acertó y cuánto ganó. La clave lleva letra ("q3") para
+   que Firebase no lo convierta en una lista con huecos. */
+export const historyKey = (qIndex) => `q${qIndex}`
+
+export function historyEntry(q, answer, parts, gain) {
+  const given = !answer ? null
+    : isChoice(q) ? { choice: answer.choice ?? '' }
+    : { subject: answer.subject ?? '', verb: answer.verb ?? '', wh: answer.wh ?? '' }
+  return { parts, gain, answer: given }
+}
+
+/* La pregunta tal como la ve el resumen: con su solución (el juego ya terminó)
+   y sin la imagen, que pesa y no hace falta para repasar. */
+export function reviewQuestion(q) {
+  const { image, ...rest } = q
+  return image ? { ...rest, hasImage: true } : rest
+}
+
 /* Racha: preguntas SEGUIDAS enteras bien (las tres partes, o la alternativa
    correcta). Una parte mal (o no
    responder) la corta. Desde STREAK_MIN se luce con 🔥 junto al nombre. */

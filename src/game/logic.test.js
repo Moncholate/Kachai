@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPublicQuestion, checkAnswer, isChoice, nextStreak, normalize, scoreFor, splitWh, WH_TYPES } from './logic.js'
+import { buildPublicQuestion, checkAnswer, historyEntry, historyKey, isChoice, nextStreak, normalize, reviewQuestion, scoreFor, splitWh, WH_TYPES } from './logic.js'
 import { ACTIVITY_TYPES, COURSES, SETS, getSet, sameTypeIn } from './sets.js'
 
 const q = { prompt: 'Where did María work yesterday?', wh: 'place', example: 'She worked at the hospital.',
@@ -152,5 +152,21 @@ describe('nextStreak', () => {
     expect(nextStreak(2, [true, true, true])).toBe(3)
     expect(nextStreak(5, [true, true, false])).toBe(0)
     expect(nextStreak(5, [false, false, false])).toBe(0)
+  })
+})
+
+describe('resumen final', () => {
+  it('guarda por pregunta lo respondido, las partes y los puntos', () => {
+    expect(historyKey(3)).toBe('q3')
+    const choice = { prompt: 'Q?', answer: 'a', options: ['a', 'b', 'c'] }
+    expect(historyEntry(choice, { choice: 'b', at: 123 }, [false], 0)).toEqual({ parts: [false], gain: 0, answer: { choice: 'b' } })
+    expect(historyEntry(q, { subject: 'She', verb: 'worked', wh: 'place', at: 1 }, [true, true, true], 900).answer)
+      .toEqual({ subject: 'She', verb: 'worked', wh: 'place' })
+    expect(historyEntry(q, null, [false, false, false], 0).answer).toBeNull()
+  })
+  it('la pregunta del resumen lleva la solución pero no la imagen', () => {
+    const withImage = { prompt: 'Q?', answer: 'a', options: ['a', 'b', 'c'], image: 'data:image/jpeg;base64,AAAA' }
+    expect(reviewQuestion(withImage)).toEqual({ prompt: 'Q?', answer: 'a', options: ['a', 'b', 'c'], hasImage: true })
+    expect(reviewQuestion(q)).toEqual(q)
   })
 })

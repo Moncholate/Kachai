@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
 import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } from '../game/sets.js'
-import { WH_TYPES, buildPublicQuestion, isChoice, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
+import { WH_TYPES, buildPublicQuestion, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
 import { getSound } from './sound.js'
 import Editor, { blankQuestion } from './Editor.jsx'
@@ -127,7 +127,11 @@ function HostRoom({ store, pin }) {
   const showRanking = () => store.update(`${base}/state`, { phase: 'leaderboard' })
   /* Tras la última pregunta no hay ranking: se salta directo al podio, que se
      revela por partes (ver game/podium.js) para mantener el suspenso. */
-  const showPodium = () => store.update(`${base}/state`, { phase: 'end', startedAt: store.stamp() })
+  /* Con el podio se publican las preguntas con sus soluciones: ya terminó el
+     juego, y cada celular arma con ellas el resumen de su alumno. */
+  const showPodium = () => store.update(`${base}/state`, {
+    phase: 'end', startedAt: store.stamp(), review: set.questions.map(reviewQuestion),
+  })
   const next = () => (isLast ? showPodium() : goQuestion(state.qIndex + 1))
   const backToLobby = () =>
     store.update(base, { answers: null, scores: null, state: { phase: 'lobby', round: state.round || 0 } })
@@ -173,6 +177,8 @@ function HostRoom({ store, pin }) {
       nextScores[id] = {
         total: state.practice ? before : before + gain, gain, parts, answered: Boolean(a),
         streak: state.practice ? 0 : nextStreak(scores[id]?.streak, parts),
+        // para el resumen final de cada alumno (la práctica no cuenta)
+        history: state.practice ? null : { ...scores[id]?.history, [historyKey(state.qIndex)]: historyEntry(q, a, parts, gain) },
       }
     }
     Object.entries(nextScores)
@@ -223,13 +229,17 @@ function HostRoom({ store, pin }) {
   /* Revelación del podio: cada paso suena una vez por ronda. */
   const podiumStep = state?.phase !== 'end' ? null
     : stage.first ? 'first' : stage.drumroll ? 'drumroll' : stage.second ? 'second' : stage.third ? 'third' : null
+  /* 3.º y 2.º: golpe corto. Redoble antes del 1.º, que se corta cuando aparece el
+     campeón: desde ahí suena SOLO la fanfarria larga (el tema 'podium'). */
   const lastStep = useRef(null)
+  const stopDrumroll = useRef(null)
   useEffect(() => {
     const key = podiumStep && `${state.round}-${podiumStep}`
     if (!key || lastStep.current === key) return
     lastStep.current = key
     if (podiumStep === 'third' || podiumStep === 'second') getSound().place()
-    if (podiumStep === 'drumroll') getSound().effect('reveal')
+    if (podiumStep === 'drumroll') getSound().effect('reveal').then((stop) => { stopDrumroll.current = stop })
+    if (podiumStep === 'first') { stopDrumroll.current?.(); stopDrumroll.current = null }
   }, [podiumStep])
 
   /* Un efecto al entrar en cada fase clave, una vez por pregunta. */
@@ -408,6 +418,7 @@ function HostRoom({ store, pin }) {
           <Podium ranking={teamRank ?? ranking} mvp={teamMode ? mvpOf(players, scores) : null} stage={stage} onAgain={backToLobby} />
         )}
       </main>
+      {state.phase !== 'lobby' && <JoinCorner pin={pin} />}
     </div>
   )
 }
@@ -757,6 +768,45 @@ function QuestionImage({ src, className = '' }) {
   return <img src={src} alt="" className={`mx-auto max-w-full rounded-2xl shadow-md object-contain bg-white ${className}`} />
 }
 
+/* En pleno juego el QR queda chico en una esquina, por si llega alguien tarde;
+   al tocarlo se agranda para escanearlo desde lejos. */
+function JoinCorner({ pin }) {
+  const joinUrl = `${location.origin}${location.pathname}#/play?pin=${pin}`
+  const [qr, setQr] = useState('')
+  const [open, setOpen] = useState(false)
+  useEffect(() => { QRCode.toDataURL(joinUrl, { margin: 1, width: 720 }).then(setQr) }, [joinUrl])
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => e.key === 'Escape' && setOpen(false)
+    addEventListener('keydown', onKey)
+    return () => removeEventListener('keydown', onKey)
+  }, [open])
+  if (!qr) return null
+  if (open) {
+    return (
+      <div onClick={() => setOpen(false)} className="fixed inset-0 z-40 bg-slate-900/70 grid place-items-center p-6 cursor-zoom-out">
+        <div className="rounded-3xl bg-white p-8 flex flex-col items-center gap-3 text-center shadow-2xl">
+          <p className="text-slate-500 font-bold uppercase tracking-widest">Join the game</p>
+          <img src={qr} alt="Código QR para unirse" className="w-[min(60vh,80vw)] h-[min(60vh,80vw)]" />
+          <p className="text-6xl font-black tracking-[.2em]">{pin}</p>
+          <p className="text-slate-500 text-sm">{joinUrl.replace(/^https?:\/\//, '')} · toca para cerrar</p>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <button onClick={() => setOpen(true)} title="Agrandar el código para unirse"
+      className="fixed bottom-4 right-4 z-30 flex items-center gap-3 rounded-2xl bg-white/95 border border-slate-200 shadow-lg p-2 pr-4 hover:shadow-xl transition">
+      <img src={qr} alt="" className="w-20 h-20" />
+      <span className="text-left">
+        <span className="block text-xs font-bold uppercase tracking-widest text-slate-500">Join</span>
+        <span className="block text-xl font-black tracking-widest">{pin}</span>
+        <span className="block text-xs text-[#0F6FD6] font-bold">⤢ Agrandar</span>
+      </span>
+    </button>
+  )
+}
+
 function MineBadge() {
   return (
     <span className="inline-block mt-1 rounded-md bg-amber-100 text-amber-800 text-[11px] font-bold uppercase tracking-wide px-2 py-0.5">
@@ -957,20 +1007,35 @@ function PracticePoints({ ranking }) {
   )
 }
 
-/* Fuegos artificiales de confeti durante unos segundos, desde varios puntos. */
+/* Festejo del campeón, ~7 s: estallido dorado con estrellas, cañones de confeti
+   desde las esquinas de abajo y fuegos artificiales en el cielo.
+   No respeta "reducir movimiento" a propósito: es el proyector de la sala, un
+   festejo pedido por el profesor, y los PC de aula suelen traer las animaciones
+   de Windows apagadas (con eso el confeti no salía). */
 function celebrate() {
-  const opts = { disableForReducedMotion: true, zIndex: 50 }
+  const opts = { zIndex: 50 }
   const gold = ['#facc15', '#fde68a', '#f59e0b', '#ffffff']
-  confetti({ ...opts, particleCount: 160, spread: 100, startVelocity: 55, origin: { x: 0.5, y: 0.55 }, colors: gold })
-  const end = Date.now() + 4000
+  const party = ['#f43f5e', '#3b82f6', '#22c55e', '#facc15', '#a855f7', '#f97316']
+  const cannons = () => {
+    confetti({ ...opts, particleCount: 70, angle: 60, spread: 60, startVelocity: 70, origin: { x: 0, y: 1 }, colors: party })
+    confetti({ ...opts, particleCount: 70, angle: 120, spread: 60, startVelocity: 70, origin: { x: 1, y: 1 }, colors: party })
+  }
+  confetti({ ...opts, particleCount: 180, spread: 110, startVelocity: 55, origin: { x: 0.5, y: 0.5 }, colors: gold })
+  confetti({ ...opts, particleCount: 40, spread: 140, startVelocity: 45, origin: { x: 0.5, y: 0.5 }, colors: gold, shapes: ['star'], scalar: 1.6 })
+  cannons()
+  const timers = [setTimeout(cannons, 900), setTimeout(cannons, 1800)]
+
+  const end = Date.now() + 7000
   const id = setInterval(() => {
     if (Date.now() > end) return clearInterval(id)
+    const colors = Math.random() < 0.35 ? gold : [party[Math.floor(Math.random() * party.length)], '#ffffff']
     confetti({
-      ...opts, particleCount: 45, spread: 360, startVelocity: 30, ticks: 70, gravity: 0.8,
-      origin: { x: 0.15 + Math.random() * 0.7, y: 0.1 + Math.random() * 0.35 },
+      ...opts, particleCount: 60, spread: 360, startVelocity: 28, ticks: 80, gravity: 0.7, decay: 0.92, colors,
+      shapes: Math.random() < 0.3 ? ['star'] : ['circle'],
+      origin: { x: 0.1 + Math.random() * 0.8, y: 0.08 + Math.random() * 0.3 },
     })
-  }, 350)
-  return () => { clearInterval(id); confetti.reset() }
+  }, 280)
+  return () => { clearInterval(id); timers.forEach(clearTimeout); confetti.reset() }
 }
 
 const PLACES = {

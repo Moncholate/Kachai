@@ -110,14 +110,23 @@ function createSoundEngine() {
     osc.stop(at + dur + 0.02)
   }
 
+  /* Devuelve stop(): el redoble del podio se corta al aparecer el campeón,
+     para que su golpe final no se pise con la fanfarria. */
   async function effect(name) {
-    if (ctx.state !== 'running') return
+    if (ctx.state !== 'running') return () => {}
     let buffer
-    try { buffer = await load(name) } catch { return }
+    try { buffer = await load(name) } catch { return () => {} }
     const src = ctx.createBufferSource()
+    const gain = ctx.createGain()
     src.buffer = buffer
-    src.connect(master)
+    src.connect(gain).connect(master)
     src.start()
+    return () => {
+      const t = ctx.currentTime
+      gain.gain.setValueAtTime(gain.gain.value, t)
+      gain.gain.linearRampToValueAtTime(0, t + 0.12)
+      src.stop(t + 0.15)
+    }
   }
 
   return {
