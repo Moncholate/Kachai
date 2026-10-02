@@ -406,8 +406,8 @@ function ReviewItem({ n, q, h }) {
       {!a && <p className="text-sm text-slate-500">No answer.</p>}
       {isChoice(q) ? (
         <div className="text-sm flex flex-col gap-1">
-          {a && !all && <p className="text-slate-500">Your answer: <s>{a.choice}</s></p>}
-          <p className="font-bold text-green-700">✓ {q.answer}</p>
+          {a && <p className={`font-bold ${all ? 'text-green-700' : 'text-rose-600'}`}>{all ? '✓' : '✗'} You: {a.choice}</p>}
+          {!all && <p className="font-bold text-green-700">✓ Correct: {q.answer}</p>}
         </div>
       ) : (
         <div className="text-sm flex flex-col gap-1">
@@ -560,34 +560,62 @@ function ChoiceForm({ question, timer, onSubmit }) {
   )
 }
 
+/* Resultado en opción múltiple. En clase los alumnos se guiaban por el color de
+   la alternativa: si la correcta salía grande y con SU color, creían haberla
+   elegido. Por eso: veredicto grande arriba, "Your answer" con el color que
+   tocaron, y la correcta aparte y siempre en verde. */
 function ChoiceResult({ question, solution, answer, score, secret, practice }) {
   const right = Boolean(score?.parts?.[0])
   const mine = answer ? question.options.indexOf(answer.choice) : -1
   const correct = question.options.indexOf(solution.answer)
   return (
-    <div className="flex flex-col gap-4 pt-4">
-      <div className="text-center">
-        <p className="text-5xl">{!answer ? '😶' : right ? '🎉' : '💪'}</p>
-        <p className="text-2xl font-black mt-2">{!answer ? 'No answer this time.' : right ? 'Correct!' : 'Not this time'}</p>
-        {secret
-          ? <p className="text-lg font-bold mt-2 text-slate-600">Points are secret until the podium 🤫</p>
-          : <p className="text-3xl font-black mt-2">+{score?.gain ?? 0}</p>}
-        {practice && (
-          <p className="text-violet-700 font-bold">Practice: these points don’t count. The real game starts at 0!</p>
-        )}
-        {score?.streak >= STREAK_MIN && (
-          <p className="mt-2 text-xl font-black text-orange-600">🔥 {score.streak} in a row!</p>
-        )}
-      </div>
+    <div className="flex flex-col gap-3 pt-2">
+      <Verdict status={!answer ? 'none' : right ? 'right' : 'wrong'} score={score} secret={secret} practice={practice} />
       <Prompt text={question.prompt} highlightWh={false} className="text-lg text-center" />
-      {answer && !right && mine >= 0 && (
-        <p className="rounded-2xl border-2 border-rose-300 bg-white p-3 text-center font-bold text-slate-500">
-          {CHOICE_STYLES[mine].shape} <s>{answer.choice}</s>
-        </p>
+      {answer && mine >= 0 && (
+        <AnswerTile label="Your answer" right={right}
+          className={`${CHOICE_STYLES[mine].solid} text-white`} shape={CHOICE_STYLES[mine].shape} text={answer.choice} />
       )}
-      <p className={`rounded-2xl p-3 text-center text-lg font-black text-white ${CHOICE_STYLES[correct]?.solid ?? 'bg-green-600'}`}>
-        ✓ {CHOICE_STYLES[correct]?.shape} {solution.answer}
-      </p>
+      {!right && (
+        <AnswerTile label="Correct answer" right
+          className="bg-green-50 text-green-800 border-2 border-green-500" shape={CHOICE_STYLES[correct]?.shape} text={solution.answer} />
+      )}
+    </div>
+  )
+}
+
+/* Veredicto a todo lo ancho: lo primero que se ve, sin depender de colores de alternativas. */
+function Verdict({ status, score, secret, practice, detail }) {
+  const look = {
+    right: ['bg-green-600', '✅', 'Correct!'],
+    partial: ['bg-amber-500', '🟡', 'Almost!'],
+    wrong: ['bg-rose-600', '❌', 'Incorrect'],
+    none: ['bg-slate-500', '😶', 'No answer'],
+  }[status]
+  return (
+    <div className={`rounded-3xl ${look[0]} text-white text-center px-4 py-4 shadow`}>
+      <p className="text-3xl font-black">{look[1]} {look[2]}</p>
+      {detail && <p className="font-bold opacity-90">{detail}</p>}
+      {secret
+        ? <p className="mt-1 font-bold opacity-90">Points are secret until the podium 🤫</p>
+        : <p className="mt-1 text-2xl font-black">+{score?.gain ?? 0}</p>}
+      {practice && <p className="mt-1 text-sm font-bold opacity-90">Practice: these points don’t count.</p>}
+      {score?.streak >= STREAK_MIN && <p className="mt-1 text-lg font-black">🔥 {score.streak} in a row!</p>}
+    </div>
+  )
+}
+
+function AnswerTile({ label, right, className, shape, text }) {
+  return (
+    <div>
+      <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-1">{label}</p>
+      <div className={`relative rounded-2xl px-4 py-3 flex items-center gap-3 text-lg font-black ${className}`}>
+        {shape && <span className="text-2xl">{shape}</span>}
+        <span className="flex-1">{text}</span>
+        <span className={`grid place-items-center w-9 h-9 rounded-full text-xl font-black shrink-0 ${right ? 'bg-green-600 text-white' : 'bg-white text-rose-600 ring-4 ring-rose-600'}`}>
+          {right ? '✓' : '✗'}
+        </span>
+      </div>
     </div>
   )
 }
@@ -615,33 +643,34 @@ function MyChoices({ answer, options }) {
 function Result({ solution, answer, score, secret, practice }) {
   const parts = score?.parts || [false, false, false]
   const correct = { subject: solution.subject.join(' / '), verb: solution.verb.join(' / '), wh: WH_TYPES[solution.wh] }
+  const hits = parts.filter(Boolean).length
+  const status = !answer ? 'none' : hits === 3 ? 'right' : hits ? 'partial' : 'wrong'
   return (
-    <div className="flex flex-col gap-4 pt-4">
-      <div className="text-center">
-        <p className="text-5xl">{!answer ? '😶' : parts.every(Boolean) ? '🎉' : parts.some(Boolean) ? '👍' : '💪'}</p>
-        {secret
-          ? <p className="text-lg font-bold mt-2 text-slate-600">Points are secret until the podium 🤫</p>
-          : <p className="text-3xl font-black mt-2">+{score?.gain ?? 0}</p>}
-        {practice && (
-          <p className="text-violet-700 font-bold">Practice: these points don’t count. The real game starts at 0!</p>
-        )}
-        {score?.streak >= STREAK_MIN && (
-          <p className="mt-2 text-xl font-black text-orange-600">🔥 {score.streak} in a row!</p>
-        )}
-        {!answer && <p className="text-slate-500">No answer this time.</p>}
-      </div>
-      {PART_KEYS.map((k, i) => (
-        <div key={k} className={`rounded-2xl border-2 p-3 bg-white ${parts[i] ? 'border-green-500' : 'border-rose-300'}`}>
-          <div className="flex items-center gap-2">
-            <RoleTag part={k} />
-            <span className="ml-auto text-xl">{parts[i] ? '✅' : '❌'}</span>
+    <div className="flex flex-col gap-3 pt-2">
+      <Verdict status={status} score={score} secret={secret} practice={practice}
+        detail={answer && hits < 3 ? `${hits} of 3 parts right` : null} />
+      {PART_KEYS.map((k, i) => {
+        const given = answer && (k === 'wh' ? WH_TYPES[answer.wh] : answer[k])
+        return (
+          <div key={k} className={`rounded-2xl border-2 p-3 bg-white flex flex-col gap-1 ${parts[i] ? 'border-green-500' : 'border-rose-400'}`}>
+            <RoleTag part={k} className="self-start" />
+            {given && (
+              <p className={`flex items-center gap-2 font-black ${parts[i] ? 'text-green-700' : 'text-rose-600'}`}>
+                <span className="text-xs uppercase tracking-widest text-slate-500 w-16">You</span>
+                <span className="flex-1">{given}</span>
+                <span className="text-xl">{parts[i] ? '✓' : '✗'}</span>
+              </p>
+            )}
+            {!parts[i] && (
+              <p className="flex items-center gap-2 font-black text-green-700">
+                <span className="text-xs uppercase tracking-widest text-slate-500 w-16">Correct</span>
+                <span className="flex-1">{correct[k]}</span>
+                <span className="text-xl">✓</span>
+              </p>
+            )}
           </div>
-          {answer && !parts[i] && (
-            <p className="mt-2 text-slate-500 line-through">{k === 'wh' ? WH_TYPES[answer.wh] : answer[k]}</p>
-          )}
-          <p className={`mt-1 text-lg font-black ${ROLES[k].text}`}>{correct[k]}</p>
-        </div>
-      ))}
+        )
+      })}
       {solution.example && (
         <p className="text-center text-slate-600">
           Possible answer: <i className="text-slate-900">“{solution.example}”</i>
