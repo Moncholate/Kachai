@@ -358,11 +358,7 @@ function HostRoom({ store, pin }) {
               <>
                 {state.question.kind === 'choice'
                   ? <ChoiceTiles options={state.question.options} />
-                  : (
-                    <div className="flex justify-center gap-3">
-                      {PART_KEYS.map((k) => <RoleTag key={k} part={k} className="text-base px-3 py-1" />)}
-                    </div>
-                  )}
+                  : <BuilderOptions question={state.question} mode={meta.mode} />}
                 <p className="text-center text-2xl text-slate-600">
                   <b className="text-slate-900 text-4xl tabular-nums">{answeredCount}</b> / {activeIds.length} answered
                 </p>
@@ -993,6 +989,35 @@ const nextLabel = (state, isLast) => (state.practice ? '¡Ahora sí, a jugar! �
 
 /* Opción múltiple en el proyector: las alternativas con su color y figura, igual
    que en los celulares. Al revelar se marca la correcta y cuántos eligió cada una. */
+/* Answer Builder en el proyector: las mismas opciones (y en el mismo orden) que
+   ven los celulares, para que el profesor sepa entre qué están eligiendo. En el
+   modo "Escribirlos", sujeto y verbo no tienen opciones: se escriben. */
+function BuilderOptions({ question, mode }) {
+  const columns = {
+    subject: mode === 'write' ? null : question.subjectOptions,
+    verb: mode === 'write' ? null : question.verbOptions,
+    wh: question.whOptions?.map((k) => WH_TYPES[k]),
+  }
+  return (
+    <div className="grid md:grid-cols-3 gap-3 max-w-5xl w-full mx-auto">
+      {PART_KEYS.map((k) => (
+        <div key={k} className={`rounded-2xl border-2 bg-white p-3 flex flex-col gap-2 ${ROLES[k].border}`}>
+          <RoleTag part={k} className="self-start text-sm px-2 py-0.5" />
+          {columns[k]
+            ? (
+              <div className="flex flex-wrap gap-2">
+                {columns[k].map((o) => (
+                  <span key={o} className={`rounded-xl border-2 px-3 py-1.5 text-xl font-bold ${ROLES[k].border} ${ROLES[k].text}`}>{o}</span>
+                ))}
+              </div>
+            )
+            : <p className="text-lg font-bold text-slate-500">✍️ Students write it</p>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ChoiceTiles({ options, answer, votes }) {
   const revealed = answer != null
   const total = votes ? votes.reduce((a, b) => a + b, 0) : 0
