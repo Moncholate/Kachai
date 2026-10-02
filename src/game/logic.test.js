@@ -183,3 +183,16 @@ describe('música de responder', () => {
     expect(game(1)[1]).not.toBe(game(2)[1])
   })
 })
+
+describe('sonidos del podio', () => {
+  it('la fanfarria corta remata justo al aparecer el 3.º y el 2.º; el 1.º solo lleva la larga', async () => {
+    const { PODIUM_AT, PODIUM_SOUNDS, REVEAL_STING_MS } = await import('./podium.js')
+    const stings = PODIUM_SOUNDS.filter((c) => !c.stopAt).map((c) => c.at + REVEAL_STING_MS)
+    expect(stings).toEqual([PODIUM_AT.third, PODIUM_AT.second])
+    const roll = PODIUM_SOUNDS.find((c) => c.stopAt)
+    // el redoble del 1.º se corta justo antes de su remate, cuando entra la fanfarria larga
+    expect(roll.stopAt).toBe(PODIUM_AT.first)
+    expect(roll.at + REVEAL_STING_MS).toBe(PODIUM_AT.first)
+    for (const c of PODIUM_SOUNDS) expect(c.at).toBeGreaterThanOrEqual(0)
+  })
+})

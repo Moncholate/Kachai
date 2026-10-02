@@ -10,7 +10,7 @@ import Editor, { blankQuestion } from './Editor.jsx'
 import {
   applyLibrary, customIndexPath, customQuestionsPath, customSet, isCustomId, libraryPath, newCustomId,
 } from '../game/library.js'
-import { podiumStage } from '../game/podium.js'
+import { PODIUM_SOUNDS, podiumStage } from '../game/podium.js'
 import {
   MAX_TEAMS, TEAM_MAX, TEAM_MIN, makeTeams, membersOf, mvpOf, presetOf, shuffleIntoTeams, smallestTeam,
   suggestTeamCount, teamIdsOf, teamRanking,
@@ -226,21 +226,28 @@ function HostRoom({ store, pin }) {
   useEffect(() => { getSound().play(track) }, [track])
   useEffect(() => () => { getSound().play(null) }, [])
 
-  /* Revelación del podio: cada paso suena una vez por ronda. */
-  const podiumStep = state?.phase !== 'end' ? null
-    : stage.first ? 'first' : stage.drumroll ? 'drumroll' : stage.second ? 'second' : stage.third ? 'third' : null
-  /* 3.º y 2.º: golpe corto. Redoble antes del 1.º, que se corta cuando aparece el
-     campeón: desde ahí suena SOLO la fanfarria larga (el tema 'podium'). */
-  const lastStep = useRef(null)
+  /* Sonidos del podio (ver PODIUM_SOUNDS): el efecto arranca ANTES de que aparezca
+     cada puesto, para que su remate caiga justo encima. Se programan con
+     temporizadores contra el reloj del servidor, una vez por ronda. */
+  const podiumKey = state?.phase === 'end' && typeof state.startedAt === 'number' ? `${state.round}-${state.startedAt}` : null
+  const scheduledPodium = useRef(null)
   const stopDrumroll = useRef(null)
   useEffect(() => {
-    const key = podiumStep && `${state.round}-${podiumStep}`
-    if (!key || lastStep.current === key) return
-    lastStep.current = key
-    if (podiumStep === 'third' || podiumStep === 'second') getSound().place()
-    if (podiumStep === 'drumroll') getSound().effect('reveal').then((stop) => { stopDrumroll.current = stop })
-    if (podiumStep === 'first') { stopDrumroll.current?.(); stopDrumroll.current = null }
-  }, [podiumStep])
+    if (!podiumKey || scheduledPodium.current === podiumKey) return
+    scheduledPodium.current = podiumKey
+    const elapsed = store.now() - state.startedAt
+    const timers = PODIUM_SOUNDS
+      .filter((cue) => cue.at >= elapsed - 100) // al recargar en pleno podio no se repite lo ya sonado
+      .flatMap((cue) => [
+        setTimeout(() => {
+          getSound().effect(cue.effect).then((stop) => { if (cue.stopAt) stopDrumroll.current = stop })
+        }, Math.max(0, cue.at - elapsed)),
+        // el redoble del 1.º se corta con su propio reloj, unos ms ANTES de su remate:
+        // esperar al cambio de etapa (se revisa cada 200 ms) dejaría asomar la fanfarria corta
+        ...(cue.stopAt ? [setTimeout(() => { stopDrumroll.current?.(); stopDrumroll.current = null }, Math.max(0, cue.stopAt - 40 - elapsed))] : []),
+      ])
+    return () => timers.forEach(clearTimeout)
+  }, [podiumKey])
 
   /* Un efecto al entrar en cada fase clave, una vez por pregunta. */
   const phaseEffect = { reading: 'question', reveal: 'reveal', leaderboard: 'ranking' }[state?.phase]

@@ -159,14 +159,6 @@ function createSoundEngine() {
     duck(on) {
       music.gain.setTargetAtTime(on ? DUCKED_LEVEL : MUSIC_LEVEL, ctx.currentTime, 0.15)
     },
-    /* Aparece un puesto del podio (3.º y 2.º): golpe grave y campanada. */
-    place() {
-      if (ctx.state !== 'running') return
-      const t = ctx.currentTime
-      blip(130, t, { dur: 0.35, type: 'triangle', level: 0.6 })
-      blip(784, t, { dur: 0.25, type: 'square', level: 0.2 })
-      blip(1175, t + 0.08, { dur: 0.35, type: 'square', level: 0.18 })
-    },
     /* Alguien entró a la sala. */
     join() {
       if (ctx.state !== 'running') return

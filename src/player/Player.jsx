@@ -115,6 +115,12 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
   const players = useValue(store, teamMode ? `${base}/players` : null) || {}
   const scores = useValue(store, teamMode ? `${base}/scores` : null) || {}
   const now = useNow(store)
+  /* El resumen del último juego queda en el celular aunque el profesor vuelva al
+     lobby ("Jugar otra vez" borra puntajes y respuestas de la sala). */
+  const [lastGame, setLastGame] = useState(null)
+  useEffect(() => {
+    if (state?.phase === 'end' && state.review && score?.history) setLastGame({ review: state.review, history: score.history })
+  }, [state?.phase, state?.review, score?.history])
 
   useEffect(() => store.presence(`${base}/online/${pid}`), [store, base, pid])
   useEffect(() => {
@@ -138,15 +144,18 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
   const myTeamPlace = myTeam ? teamRank.findIndex((t) => t.id === myTeam.id) + 1 : 0
 
   let body
-  if (state.phase === 'lobby' && teamMode) {
-    body = <TeamLobby profile={profile} pid={pid} meta={meta} players={players}
-      onPick={(team) => store.update(`${base}/players/${pid}`, { team })} />
-  } else if (state.phase === 'lobby') {
-    body = (
-      <Message emoji="✅" title={`You're in, ${profile.name}!`}>
-        Look at the screen. The game starts soon.
-      </Message>
-    )
+  if (state.phase === 'lobby') {
+    const waiting = teamMode
+      ? <TeamLobby profile={profile} pid={pid} meta={meta} players={players}
+          onPick={(team) => store.update(`${base}/players/${pid}`, { team })} />
+      : (
+        <Message emoji="✅" title={`You're in, ${profile.name}!`}>
+          Look at the screen. The game starts soon.
+        </Message>
+      )
+    body = lastGame
+      ? <EndTabs review={lastGame.review} history={lastGame.history} firstLabel="⏳ Next game">{waiting}</EndTabs>
+      : waiting
   } else if (state.phase === 'reading') {
     body = (
       <div className="flex flex-col gap-6 pt-8">
@@ -308,7 +317,7 @@ function FinalPosition({ score }) {
 }
 
 /* Al terminar: el puesto, y una pestaña de repaso con cada pregunta. */
-function EndTabs({ review, history, children }) {
+function EndTabs({ review, history, firstLabel = '🏆 Result', children }) {
   const [tab, setTab] = useState('result')
   const questions = review
     ? (Array.isArray(review) ? review : Object.values(review)).map((q) => ({ ...normalizeQuestion(q), hasImage: q.hasImage }))
@@ -317,7 +326,7 @@ function EndTabs({ review, history, children }) {
     <div className="flex flex-col gap-4 pt-2">
       {questions.length > 0 && (
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
-          {[['result', '🏆 Result'], ['review', '📋 Review my answers']].map(([id, label]) => (
+          {[['result', firstLabel], ['review', '📋 Review my answers']].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)}
               className={`rounded-lg py-2 text-sm font-bold transition ${tab === id ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>
               {label}
@@ -325,7 +334,14 @@ function EndTabs({ review, history, children }) {
           ))}
         </div>
       )}
-      {tab === 'review' && questions.length > 0 ? <Review questions={questions} history={history} /> : children}
+      {tab === 'review' && questions.length > 0 ? <Review questions={questions} history={history} /> : (
+        <>
+          {children}
+          {questions.length > 0 && (
+            <Button className="text-lg py-4 mt-2" onClick={() => setTab('review')}>📋 See your answers</Button>
+          )}
+        </>
+      )}
     </div>
   )
 }
