@@ -11,6 +11,7 @@ import {
   applyLibrary, customIndexPath, customQuestionsPath, customSet, isCustomId, libraryPath, newCustomId,
 } from '../game/library.js'
 import { PODIUM_SOUNDS, podiumStage } from '../game/podium.js'
+import { BOARD_SIZE, buildBoard, previousTotals } from '../game/duels.js'
 import {
   MAX_TEAMS, TEAM_MAX, TEAM_MIN, makeTeams, membersOf, mvpOf, presetOf, shuffleIntoTeams, smallestTeam,
   suggestTeamCount, teamIdsOf, teamRanking,
@@ -124,7 +125,13 @@ function HostRoom({ store, pin }) {
   const startForReal = () => goQuestion(0, state.round, { answers: null, scores: null })
   const startAnswering = () => store.update(`${base}/state`, { phase: 'answering', startedAt: store.stamp() })
   const isLast = !state?.practice && state?.qIndex + 1 >= set?.questions.length
-  const showRanking = () => store.update(`${base}/state`, { phase: 'leaderboard' })
+  /* Al abrir el ranking se arma el tablero de duelos (ver game/duels.js) y se
+     publica: proyector y celulares muestran los mismos VS. */
+  const showRanking = () => {
+    const now = teamMode ? teamRanking(teams, players, scores) : individualRanking(players, scores)
+    const beforeLast = state.qIndex + 2 === set.questions.length
+    store.update(`${base}/state`, { phase: 'leaderboard', board: buildBoard(now, previousTotals(now), beforeLast) })
+  }
   /* Tras la última pregunta no hay ranking: se salta directo al podio, que se
      revela por partes (ver game/podium.js) para mantener el suspenso. */
   /* Con el podio se publican las preguntas con sus soluciones: ya terminó el
@@ -290,10 +297,7 @@ function HostRoom({ store, pin }) {
   }
   if (!meta || !state) return <Center>Cargando sala…</Center>
 
-  const ranking = Object.entries(scores)
-    .filter(([id]) => players[id])
-    .map(([id, s]) => ({ id, name: players[id].name, ...s }))
-    .sort((a, b) => b.total - a.total)
+  const ranking = individualRanking(players, scores)
   const teamRank = teamMode ? teamRanking(teams, players, scores) : null
 
   return (
@@ -377,48 +381,13 @@ function HostRoom({ store, pin }) {
             onNext={state.practice ? startForReal : isLast ? showPodium : showRanking} />
         )}
 
-        {state.phase === 'leaderboard' && teamMode && (
-          <section className="max-w-3xl mx-auto flex flex-col gap-6">
-            <h2 className="text-4xl font-black text-center">Team ranking</h2>
-            <ol className="flex flex-col gap-2">
-              {teamRank.map((t, i) => (
-                <li key={t.id} className={`flex items-center gap-4 rounded-2xl border-2 px-5 py-3 text-xl ${presetOf(t.id).tint} ${presetOf(t.id).border}`}>
-                  <span className="w-8 font-black text-slate-400">{i + 1}</span>
-                  <span className="flex-1 min-w-0 font-bold truncate">
-                    {t.name} <span className="text-base font-normal text-slate-500">· {t.members.length}</span>
-                  </span>
-                  {t.gain > 0 && <span className="text-green-600 font-bold">+{t.gain}</span>}
-                  <span className="w-24 text-right font-black tabular-nums">{t.total}</span>
-                </li>
-              ))}
-            </ol>
-            <p className="text-center text-slate-500">Team points = the average of its players</p>
-            <div className="flex justify-center">
-              <Button onClick={next}>Siguiente pregunta →</Button>
-            </div>
-          </section>
-        )}
-
-        {state.phase === 'leaderboard' && !teamMode && (
-          <section className="max-w-3xl mx-auto flex flex-col gap-6">
-            <h2 className="text-4xl font-black text-center">Ranking</h2>
-            <ol className="flex flex-col gap-2">
-              {ranking.slice(0, 10).map((p, i) => (
-                <li key={p.id} className="flex items-center gap-4 rounded-2xl bg-white border border-slate-200 px-5 py-3 text-xl">
-                  <span className="w-8 font-black text-slate-400">{i + 1}</span>
-                  <span className="flex-1 min-w-0 flex items-center gap-2">
-                    <span className="font-bold truncate">{p.name}</span>
-                    <StreakBadge streak={p.streak} className="text-base shrink-0" />
-                  </span>
-                  {p.gain > 0 && <span className="text-green-600 font-bold">+{p.gain}</span>}
-                  <span className="w-24 text-right font-black tabular-nums">{p.total}</span>
-                </li>
-              ))}
-            </ol>
-            <div className="flex justify-center">
-              <Button onClick={next}>Siguiente pregunta →</Button>
-            </div>
-          </section>
+        {state.phase === 'leaderboard' && (
+          <Leaderboard board={state.board} onNext={next}
+            title={teamMode ? 'Team ranking' : 'Ranking'}
+            footnote={teamMode ? 'Team points = the average of its players' : null}
+            rows={teamMode
+              ? teamRank.map((t) => ({ ...t, tint: `${presetOf(t.id).tint} ${presetOf(t.id).border} border-2`, extra: <span className="text-base font-normal text-slate-500">· {t.members.length}</span> }))
+              : ranking.map((p) => ({ ...p, extra: <StreakBadge streak={p.streak} className="text-base shrink-0" /> }))} />
         )}
 
         {state.phase === 'end' && (
@@ -855,6 +824,81 @@ function Account({ store, user }) {
       <span className="font-bold max-w-[10rem] truncate">{user.name}</span>
       <button onClick={() => store.signOut()} className="text-slate-500 hover:underline">Salir</button>
     </span>
+  )
+}
+
+/* Orden del ranking individual: el mismo al armar los duelos y al dibujarlos. */
+function individualRanking(players, scores) {
+  return Object.entries(scores)
+    .filter(([id]) => players[id])
+    .map(([id, s]) => ({ id, name: players[id].name, ...s }))
+    .sort((a, b) => b.total - a.total)
+}
+
+/* Ranking con duelos: los pares a tiro de una pregunta van enmarcados con su VS,
+   arriba se anuncian los adelantamientos y, antes de la última pregunta, el duelo
+   por el primer lugar. */
+function Leaderboard({ title, rows, board, footnote, onNext }) {
+  const shown = rows.slice(0, BOARD_SIZE)
+  const duels = board?.duels ? Object.values(board.duels) : []
+  const overtakes = board?.overtakes ? Object.values(board.overtakes) : []
+  const items = []
+  for (let i = 0; i < shown.length; i++) {
+    const duel = duels.find((d) => d.place === i + 1 && shown[i + 1])
+    if (duel) {
+      items.push(
+        <li key={shown[i].id} className={`relative rounded-3xl border-[3px] p-1.5 flex flex-col gap-1.5 ${duel.photo ? 'border-rose-500 bg-rose-50' : 'border-orange-400 bg-orange-50'}`}>
+          <BoardRow row={shown[i]} place={i + 1} />
+          <span className={`absolute right-36 top-1/2 -translate-y-1/2 z-10 rounded-full px-3 py-1 text-base font-black text-white shadow ${duel.photo ? 'bg-rose-600 animate-pulse' : 'bg-orange-500'}`}>
+            ⚔️ VS · {duel.gap} pts
+          </span>
+          <BoardRow row={shown[i + 1]} place={i + 2} />
+        </li>,
+      )
+      i++
+    } else {
+      items.push(<li key={shown[i].id}><BoardRow row={shown[i]} place={i + 1} /></li>)
+    }
+  }
+  return (
+    <section className="max-w-3xl mx-auto flex flex-col gap-5">
+      <h2 className="text-4xl font-black text-center">{title}</h2>
+      {board?.finalDuel && (
+        <div className="rounded-3xl bg-gradient-to-r from-rose-600 to-orange-500 text-white text-center px-6 py-4 shadow-lg animate-rise">
+          <p className="text-sm font-black uppercase tracking-[.3em]">⚔️ Final duel · last question!</p>
+          <p className="text-3xl font-black">{board.finalDuel.upper.name} <span className="opacity-80">vs</span> {board.finalDuel.lower.name}</p>
+          <p className="font-bold">only {board.finalDuel.gap} points apart</p>
+        </div>
+      )}
+      {overtakes.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2">
+          {overtakes.map((o) => (
+            <span key={o.who.id} className="rounded-full bg-violet-600 text-white font-black px-4 py-1.5 text-lg shadow animate-rise">
+              🔄 {o.who.name} overtook {o.over.name}!
+            </span>
+          ))}
+        </div>
+      )}
+      <ol className="flex flex-col gap-2">{items}</ol>
+      {footnote && <p className="text-center text-slate-500">{footnote}</p>}
+      <div className="flex justify-center">
+        <Button onClick={onNext}>Siguiente pregunta →</Button>
+      </div>
+    </section>
+  )
+}
+
+function BoardRow({ row, place }) {
+  return (
+    <div className={`flex items-center gap-4 rounded-2xl px-5 py-3 text-xl ${row.tint ?? 'bg-white border border-slate-200'}`}>
+      <span className="w-8 font-black text-slate-400">{place}</span>
+      <span className="flex-1 min-w-0 flex items-center gap-2">
+        <span className="font-bold truncate">{row.name}</span>
+        {row.extra}
+      </span>
+      {row.gain > 0 && <span className="text-green-600 font-bold">+{row.gain}</span>}
+      <span className="w-24 text-right font-black tabular-nums">{row.total}</span>
+    </div>
   )
 }
 

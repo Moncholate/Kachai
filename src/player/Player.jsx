@@ -199,12 +199,14 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
       <Message emoji={myTeam.emoji} title={myTeamPlace ? `Your team is #${myTeamPlace}` : 'Ranking'}>
         {myTeam.name}: {teamRank[myTeamPlace - 1]?.total ?? 0} points (team average)
         <span className="block mt-1 text-sm">You: {score?.total ?? 0} points</span>
+        <DuelNote board={state.board} id={myTeam.id} team />
       </Message>
     )
   } else if (state.phase === 'leaderboard') {
     body = (
       <Message emoji="📊" title={score?.rank ? `You are #${score.rank}` : 'Ranking'}>
         {score?.total ?? 0} points
+        <DuelNote board={state.board} id={pid} />
       </Message>
     )
   } else if (state.phase === 'end') {
@@ -285,6 +287,32 @@ function TeamLobby({ profile, pid, meta, players, onPick }) {
         </p>
       )}
     </div>
+  )
+}
+
+/* El duelo personal en el ranking (ver game/duels.js): adelantamientos de esta
+   pregunta y el rival a tiro para la próxima. team: frases para el equipo. */
+function DuelNote({ board, id, team = false }) {
+  const overtakes = board?.overtakes ? Object.values(board.overtakes) : []
+  const passed = overtakes.find((o) => o.who.id === id)
+  const lost = overtakes.find((o) => o.over.id === id)
+  const duel = board?.personal?.[id]
+  const we = team ? 'Your team' : 'You'
+  if (!passed && !lost && !duel) return null
+  return (
+    <span className="mt-4 flex flex-col gap-2">
+      {passed && <span className="rounded-2xl bg-violet-600 text-white font-black px-4 py-2">🔄 {we} overtook {passed.over.name}!</span>}
+      {lost && <span className="rounded-2xl bg-slate-700 text-white font-black px-4 py-2">😮 {lost.who.name} overtook {team ? 'your team' : 'you'}!</span>}
+      {duel && (
+        <span className={`rounded-2xl border-2 font-black px-4 py-2 ${duel.gap < 100 ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-orange-400 bg-orange-50 text-orange-700'}`}>
+          {duel.gap === 0
+            ? `⚔️ ${we} ${team ? 'is' : 'are'} tied with ${duel.rival}!`
+            : duel.ahead
+              ? `⚔️ ${we} ${team ? 'is' : 'are'} ${duel.gap} pts behind ${duel.rival}. Catch up!`
+              : `⚔️ ${duel.rival} is ${duel.gap} pts behind ${team ? 'your team' : 'you'}. Defend your place!`}
+        </span>
+      )}
+    </span>
   )
 }
 
