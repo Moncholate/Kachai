@@ -7,6 +7,8 @@ import { WH_TYPES, buildPublicQuestion, historyEntry, historyKey, isChoice, revi
 import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
 import { answeringTrack, getSound } from './sound.js'
 import Editor, { blankQuestion } from './Editor.jsx'
+import ClassReport from './ClassReport.jsx'
+import { buildReport } from '../game/report.js'
 import {
   applyLibrary, customIndexPath, customQuestionsPath, customSet, isCustomId, libraryPath, newCustomId,
 } from '../game/library.js'
@@ -77,6 +79,10 @@ function HostRoom({ store, pin }) {
   /* Biblioteca personal: sus versiones editadas reemplazan a las originales. */
   const library = useValue(store, user ? libraryPath(user.uid) : null) || {}
   const [editing, setEditing] = useState(null)
+  /* Resumen del curso: se abre desde el podio, y el del último juego sigue
+     disponible en el lobby después de "Jugar otra vez" (que borra los puntajes). */
+  const [reportOpen, setReportOpen] = useState(false)
+  const [lastReport, setLastReport] = useState(null)
 
   /* Actividades propias: el índice (liviano) siempre; las preguntas, que pueden
      traer imágenes, solo de la elegida. */
@@ -140,8 +146,11 @@ function HostRoom({ store, pin }) {
     phase: 'end', startedAt: store.stamp(), review: set.questions.map(reviewQuestion),
   })
   const next = () => (isLast ? showPodium() : goQuestion(state.qIndex + 1))
-  const backToLobby = () =>
-    store.update(base, { answers: null, scores: null, state: { phase: 'lobby', round: state.round || 0 } })
+  const backToLobby = () => {
+    if (set) setLastReport({ report: buildReport(set.questions, players, scores), title: activityLabel(set) })
+    setReportOpen(false)
+    return store.update(base, { answers: null, scores: null, state: { phase: 'lobby', round: state.round || 0 } })
+  }
   const kick = (id) => store.update(base, { [`players/${id}`]: null, [`scores/${id}`]: null, [`online/${id}`]: null })
   const closeRoom = async () => {
     if (!confirm('¿Cerrar la sala? Los alumnos quedarán fuera.')) return
@@ -324,10 +333,13 @@ function HostRoom({ store, pin }) {
           <ActivityEditor store={store} user={user} editing={editing} library={library} customIndex={customIndex}
             current={set} onSelect={(setId) => store.update(`${base}/meta`, { setId })} onClose={() => setEditing(null)} />
         )}
-        {state.phase === 'lobby' && !editing && (
+        {state.phase === 'lobby' && !editing && reportOpen && lastReport && (
+          <ClassReport report={lastReport.report} title={lastReport.title} closeLabel="← Volver al lobby" onClose={() => setReportOpen(false)} />
+        )}
+        {state.phase === 'lobby' && !editing && !(reportOpen && lastReport) && (
           <Lobby store={store} base={base} pin={pin} meta={meta} players={players} online={online}
             set={set} setReady={setReady} user={user} library={library} customIndex={customIndex}
-            onKick={kick} onStart={start}
+            onKick={kick} onStart={start} onLastReport={lastReport ? () => setReportOpen(true) : null}
             onEdit={async (id) => {
               if (!user && !(await signInFriendly(store))) return
               setEditing(isCustomId(id) ? { kind: 'custom', id, info: customIndex[id] } : { kind: 'base', id })
@@ -386,16 +398,21 @@ function HostRoom({ store, pin }) {
               : ranking.map((p) => ({ ...p, extra: <StreakBadge streak={p.streak} className="text-base shrink-0" /> }))} />
         )}
 
-        {state.phase === 'end' && (
-          <Podium ranking={teamRank ?? ranking} mvp={teamMode ? mvpOf(players, scores) : null} stage={stage} onAgain={backToLobby} />
+        {state.phase === 'end' && reportOpen && (
+          <ClassReport report={buildReport(set.questions, players, scores)} title={activityLabel(set)}
+            closeLabel="🏆 Volver al podio" onClose={() => setReportOpen(false)} />
+        )}
+        {state.phase === 'end' && !reportOpen && (
+          <Podium ranking={teamRank ?? ranking} mvp={teamMode ? mvpOf(players, scores) : null} stage={stage}
+            onAgain={backToLobby} onReport={() => setReportOpen(true)} />
         )}
       </main>
-      {state.phase !== 'lobby' && <JoinCorner pin={pin} />}
+      {inGame && state.phase !== 'end' && <JoinCorner pin={pin} />}
     </div>
   )
 }
 
-function Lobby({ store, base, pin, meta, players, online, set, setReady, user, library, customIndex, onKick, onStart, onEdit, onCreate }) {
+function Lobby({ store, base, pin, meta, players, online, set, setReady, user, library, customIndex, onKick, onStart, onEdit, onCreate, onLastReport }) {
   const joinUrl = `${location.origin}${location.pathname}#/play?pin=${pin}`
   const [qr, setQr] = useState('')
   useEffect(() => {
@@ -541,6 +558,11 @@ function Lobby({ store, base, pin, meta, players, online, set, setReady, user, l
           <p className="text-center text-sm font-bold text-amber-700">
             {user ? 'Cargando tu actividad…' : 'Inicia sesión para usar tu actividad, o elige otra.'}
           </p>
+        )}
+        {onLastReport && (
+          <button onClick={onLastReport} className="self-center text-sm font-bold text-[#0F6FD6] hover:underline">
+            📊 Ver resumen del último juego
+          </button>
         )}
         <Button className="text-xl py-4" disabled={list.length === 0 || !setReady} onClick={onStart}>
           Comenzar ▶
@@ -821,6 +843,12 @@ function Account({ store, user }) {
       <button onClick={() => store.signOut()} className="text-slate-500 hover:underline">Salir</button>
     </span>
   )
+}
+
+/* "Básico II · EA1 · Grammar Focus · Object pronouns", para títulos y archivos. */
+function activityLabel(set) {
+  const course = set.courseName ?? COURSES.find((c) => c.id === set.course)?.name
+  return [course, set.ea, set.title].filter(Boolean).join(' · ')
 }
 
 /* Orden del ranking individual: el mismo al armar los duelos y al dibujarlos. */
@@ -1136,7 +1164,7 @@ function CountUp({ to, ms = 1200 }) {
   return value
 }
 
-function Podium({ ranking, mvp, stage, onAgain }) {
+function Podium({ ranking, mvp, stage, onAgain, onReport }) {
   const shown = { 1: stage.first, 2: stage.second, 3: stage.third }
 
   // Solo si el primero aparece ahora (no al recargar la página mucho después).
@@ -1207,7 +1235,12 @@ function Podium({ ranking, mvp, stage, onAgain }) {
           </div>
         </div>
       )}
-      {stage.rest && <Button onClick={onAgain} className="animate-rise">Jugar otra vez</Button>}
+      {stage.rest && (
+        <div className="flex flex-wrap justify-center gap-3 animate-rise">
+          <Button onClick={onReport}>📊 Resumen del curso</Button>
+          <Button variant="ghost" onClick={onAgain}>Jugar otra vez</Button>
+        </div>
+      )}
     </section>
   )
 }
