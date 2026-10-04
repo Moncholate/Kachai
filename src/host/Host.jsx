@@ -189,6 +189,7 @@ function HostRoom({ store, pin }) {
         } else {
           PART_KEYS.forEach((k, i) => { if (parts[i]) stats[k]++ })
         }
+        if (parts.every(Boolean)) stats.full = (stats.full || 0) + 1
       }
       nextScores[id] = {
         total: state.practice ? before : before + gain, gain, parts, answered: Boolean(a),
@@ -228,6 +229,7 @@ function HostRoom({ store, pin }) {
       const everyone = activeIds.length > 0 && activeIds.every((id) => answers[id])
       if (timeUp || everyone) {
         fired.current = key
+        if (!everyone) getSound().effect('timesUp')
         reveal()
       }
     }
@@ -257,8 +259,7 @@ function HostRoom({ store, pin }) {
     podiumTimers.current = PODIUM_SOUNDS
       .filter((cue) => cue.at >= elapsed - 150) // al recargar en pleno podio no se repite lo ya sonado
       .map((cue) => setTimeout(() => {
-        if (cue.drumroll) sound.drumroll(cue.drumroll / 1000)
-        if (cue.fanfare) sound.fanfare(cue.fanfare)
+        if (cue.effect) sound.effect(cue.effect)
         if (cue.music) sound.play(cue.music)
       }, Math.max(0, cue.at - elapsed)))
   }, [podiumRound])
@@ -276,7 +277,22 @@ function HostRoom({ store, pin }) {
   useEffect(() => {
     if (!phaseEffect || lastEffect.current === phaseKey) return
     lastEffect.current = phaseKey
-    getSound().effect(phaseEffect)
+    const sound = getSound()
+    sound.effect(phaseEffect)
+    const later = (ms, name) => setTimeout(() => sound.effect(name), ms)
+    /* Revelar: el público reacciona según cómo le fue al curso, después del
+       remate del efecto de revelar (~1,7 s). Entre 40 y 70 %, silencio. */
+    if (state.phase === 'reveal' && state.stats?.answered) {
+      const rate = (state.stats.full || 0) / state.stats.answered
+      if (rate >= 0.7) later(1800, 'crowdYes')
+      else if (rate < 0.4) later(1800, 'crowdNo')
+    }
+    /* Ranking: 🔄 si alguien adelantó a su rival, y luego ⚔️ si hay duelos. */
+    if (state.phase === 'leaderboard' && state.board) {
+      const overtook = Object.keys(state.board.overtakes || {}).length > 0
+      if (overtook) later(300, 'overtake')
+      if (Object.keys(state.board.duels || {}).length > 0) later(overtook ? 900 : 400, 'duel')
+    }
   }, [phaseKey, phaseEffect])
 
   const secondsLeft = state?.phase === 'answering' && meta && typeof state.startedAt === 'number'
@@ -381,7 +397,7 @@ function HostRoom({ store, pin }) {
               </>
             )}
             <div className="flex justify-center">
-              <Button variant="ghost" onClick={state.phase === 'reading' ? startAnswering : reveal}>
+              <Button variant="ghost" onClick={state.phase === 'reading' ? startAnswering : () => { getSound().effect('timesUp'); reveal() }}>
                 {state.phase === 'reading' ? 'Saltar lectura' : 'Terminar tiempo'}
               </Button>
             </div>

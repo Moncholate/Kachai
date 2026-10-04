@@ -185,15 +185,19 @@ describe('música de responder', () => {
 })
 
 describe('sonidos del podio', () => {
-  it('redoble que termina al aparecer cada puesto; mini fanfarria para 3.º y 2.º; la larga solo para el 1.º', async () => {
-    const { FANFARE_MS, PODIUM_AT, PODIUM_SOUNDS } = await import('./podium.js')
-    const rolls = PODIUM_SOUNDS.filter((c) => c.drumroll)
-    expect(rolls.map((c) => c.at + c.drumroll)).toEqual([PODIUM_AT.third, PODIUM_AT.second, PODIUM_AT.first])
-    expect(PODIUM_SOUNDS.filter((c) => c.fanfare).map((c) => [c.at, c.fanfare])).toEqual([[PODIUM_AT.third, 1], [PODIUM_AT.second, 2]])
-    expect(PODIUM_SOUNDS.filter((c) => c.music)).toEqual([{ at: PODIUM_AT.first, music: 'podium' }])
-    // nada se pisa: cada sonido empieza cuando el anterior ya terminó
-    const spans = PODIUM_SOUNDS.map((c) => [c.at, c.at + (c.drumroll ?? (c.fanfare ? FANFARE_MS : 0))]).sort((a, b) => a[0] - b[0])
-    for (let i = 1; i < spans.length; i++) expect(spans[i][0]).toBeGreaterThanOrEqual(spans[i - 1][1])
+  it('redoble que termina al aparecer cada puesto; fanfarria propia para 3.º y 2.º; la larga para el 1.º', async () => {
+    const { PODIUM_AT, PODIUM_SOUNDS, SOUND_MS } = await import('./podium.js')
+    const len = (c) => SOUND_MS[c.effect] ?? 0
+    const rolls = PODIUM_SOUNDS.filter((c) => c.effect?.startsWith('drumroll'))
+    expect(rolls.map((c) => c.at + len(c))).toEqual([PODIUM_AT.third, PODIUM_AT.second, PODIUM_AT.first])
+    expect(PODIUM_SOUNDS.filter((c) => c.effect?.startsWith('fanfare')).map((c) => [c.at, c.effect]))
+      .toEqual([[PODIUM_AT.third, 'fanfareThird'], [PODIUM_AT.second, 'fanfareSecond']])
+    expect(PODIUM_SOUNDS.find((c) => c.music)).toEqual({ at: PODIUM_AT.first, music: 'podium' })
+    // nada se corta ni se pisa: cada fanfarria termina completa antes del redoble siguiente
+    const seq = [...rolls, ...PODIUM_SOUNDS.filter((c) => c.effect?.startsWith('fanfare'))].sort((a, b) => a.at - b.at)
+    for (let i = 1; i < seq.length; i++) expect(seq[i].at).toBeGreaterThanOrEqual(seq[i - 1].at + len(seq[i - 1]))
+    // el 4.º lugar en adelante y los botones, después del campeón
+    expect(PODIUM_AT.rest).toBeGreaterThan(PODIUM_AT.first)
     for (const c of PODIUM_SOUNDS) expect(c.at).toBeGreaterThanOrEqual(0)
   })
 })

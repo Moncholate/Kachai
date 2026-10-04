@@ -1,12 +1,30 @@
 /* Guion de la revelación final, en ms desde que empieza la fase 'end'. El
    proyector y los celulares lo calculan con el mismo reloj (el del servidor),
-   así que nadie ve su puesto antes de que aparezca en la pantalla. */
+   así que nadie ve su puesto antes de que aparezca en la pantalla.
+
+   Los tiempos salen de los LARGOS REALES de los sonidos (ver tools/make-sfx.mjs):
+   cada redoble termina justo cuando aparece su puesto, y cada fanfarria suena
+   completa antes de que empiece el redoble siguiente. Si se cambia un sonido,
+   se actualiza su largo aquí y el guion se acomoda solo. */
+export const SOUND_MS = {
+  drumrollShort: 1250,
+  drumrollLong: 2100,
+  fanfareThird: 3000,
+  fanfareSecond: 4100,
+}
+const LEAD = 300 // un respiro antes del primer redoble
+const GAP = 150 // entre el final de una fanfarria y el redoble siguiente
+
+const third = LEAD + SOUND_MS.drumrollShort
+const second = third + SOUND_MS.fanfareThird + GAP + SOUND_MS.drumrollShort
+const first = second + SOUND_MS.fanfareSecond + GAP + SOUND_MS.drumrollLong
+
 export const PODIUM_AT = {
-  third: 1800,
-  second: 4800,
-  drumroll: 7000, // "And the winner is…" mientras suena el redoble del 1.º
-  first: 8700,
-  rest: 11000, // del 4.º lugar hacia abajo, y el botón "Jugar otra vez"
+  third,
+  second,
+  drumroll: first - SOUND_MS.drumrollLong, // "And the winner is…" mientras suena el redoble largo
+  first,
+  rest: first + 2300, // del 4.º lugar hacia abajo, y los botones del final
 }
 
 export function podiumStage(startedAt, now) {
@@ -14,18 +32,15 @@ export function podiumStage(startedAt, now) {
   return Object.fromEntries(Object.entries(PODIUM_AT).map(([k, at]) => [k, t >= at]))
 }
 
-/* Sonidos del podio, pedidos por la profesora: un redoble antes de cada puesto
-   que termina justo cuando aparece; mini fanfarria para el 3.º y el 2.º (un tono
-   más aguda); para el 1.º, la fanfarria larga (el tema 'podium') sola.
-   Duraciones en ms. La mini fanfarria dura ~800 ms: nada se pisa. */
-export const FANFARE_MS = 800
-const ROLL = 1600
-const LAST_ROLL = 2400
+/* Sonidos del podio, pedidos por la profesora: redoble antes de cada puesto,
+   fanfarria propia para el 3.º y el 2.º, y para el 1.º la fanfarria larga
+   (el tema 'podium') con aplausos más suaves encima. */
 export const PODIUM_SOUNDS = [
-  { at: PODIUM_AT.third - ROLL, drumroll: ROLL },
-  { at: PODIUM_AT.third, fanfare: 1 },
-  { at: PODIUM_AT.second - ROLL, drumroll: ROLL },
-  { at: PODIUM_AT.second, fanfare: 2 },
-  { at: PODIUM_AT.first - LAST_ROLL, drumroll: LAST_ROLL },
-  { at: PODIUM_AT.first, music: 'podium' },
+  { at: third - SOUND_MS.drumrollShort, effect: 'drumrollShort' },
+  { at: third, effect: 'fanfareThird' },
+  { at: second - SOUND_MS.drumrollShort, effect: 'drumrollShort' },
+  { at: second, effect: 'fanfareSecond' },
+  { at: first - SOUND_MS.drumrollLong, effect: 'drumrollLong' },
+  { at: first, music: 'podium' },
+  { at: first + 300, effect: 'applause' },
 ]
