@@ -185,14 +185,15 @@ describe('música de responder', () => {
 })
 
 describe('sonidos del podio', () => {
-  it('la fanfarria corta remata justo al aparecer el 3.º y el 2.º; el 1.º solo lleva la larga', async () => {
-    const { PODIUM_AT, PODIUM_SOUNDS, REVEAL_STING_MS } = await import('./podium.js')
-    const stings = PODIUM_SOUNDS.filter((c) => !c.stopAt).map((c) => c.at + REVEAL_STING_MS)
-    expect(stings).toEqual([PODIUM_AT.third, PODIUM_AT.second])
-    const roll = PODIUM_SOUNDS.find((c) => c.stopAt)
-    // el redoble del 1.º se corta justo antes de su remate, cuando entra la fanfarria larga
-    expect(roll.stopAt).toBe(PODIUM_AT.first)
-    expect(roll.at + REVEAL_STING_MS).toBe(PODIUM_AT.first)
+  it('redoble que termina al aparecer cada puesto; mini fanfarria para 3.º y 2.º; la larga solo para el 1.º', async () => {
+    const { FANFARE_MS, PODIUM_AT, PODIUM_SOUNDS } = await import('./podium.js')
+    const rolls = PODIUM_SOUNDS.filter((c) => c.drumroll)
+    expect(rolls.map((c) => c.at + c.drumroll)).toEqual([PODIUM_AT.third, PODIUM_AT.second, PODIUM_AT.first])
+    expect(PODIUM_SOUNDS.filter((c) => c.fanfare).map((c) => [c.at, c.fanfare])).toEqual([[PODIUM_AT.third, 1], [PODIUM_AT.second, 2]])
+    expect(PODIUM_SOUNDS.filter((c) => c.music)).toEqual([{ at: PODIUM_AT.first, music: 'podium' }])
+    // nada se pisa: cada sonido empieza cuando el anterior ya terminó
+    const spans = PODIUM_SOUNDS.map((c) => [c.at, c.at + (c.drumroll ?? (c.fanfare ? FANFARE_MS : 0))]).sort((a, b) => a[0] - b[0])
+    for (let i = 1; i < spans.length; i++) expect(spans[i][0]).toBeGreaterThanOrEqual(spans[i - 1][1])
     for (const c of PODIUM_SOUNDS) expect(c.at).toBeGreaterThanOrEqual(0)
   })
 })

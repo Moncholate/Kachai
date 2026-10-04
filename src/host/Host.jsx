@@ -236,34 +236,38 @@ function HostRoom({ store, pin }) {
   /* Música por fase. La lectura va en silencio para concentrarse; el tema de
      responder arranca con el cronómetro. Revelar y ranking tampoco llevan música. */
   const stage = podiumStage(state?.phase === 'end' ? state.startedAt : null, now)
-  const track = state?.phase === 'end'
-    ? (stage.first ? 'podium' : null) // la fanfarria llega con el primer lugar
+  // En el podio la música la pone el guion de abajo (la fanfarria larga entra con el 1.º).
+  const track = state?.phase === 'end' ? null
     : ({ lobby: 'lobby', answering: answeringTrack(state?.round, state?.qIndex) }[state?.phase] ?? null)
   useEffect(() => { getSound().play(track) }, [track])
   useEffect(() => () => { getSound().play(null) }, [])
 
-  /* Sonidos del podio (ver PODIUM_SOUNDS): el efecto arranca ANTES de que aparezca
-     cada puesto, para que su remate caiga justo encima. Se programan con
-     temporizadores contra el reloj del servidor, una vez por ronda. */
-  const podiumKey = state?.phase === 'end' && typeof state.startedAt === 'number' ? `${state.round}-${state.startedAt}` : null
+  /* Sonidos del podio (ver PODIUM_SOUNDS): redobles, mini fanfarrias y la larga.
+     Se programan UNA vez por juego (clave: la ronda). Antes la clave incluía la
+     hora de inicio, que Firebase primero estima y luego corrige: al corregirse se
+     reprogramaba todo y lo ya sonado se repetía encima. */
+  const podiumRound = state?.phase === 'end' && typeof state.startedAt === 'number' ? state.round : null
   const scheduledPodium = useRef(null)
-  const stopDrumroll = useRef(null)
+  const podiumTimers = useRef([])
   useEffect(() => {
-    if (!podiumKey || scheduledPodium.current === podiumKey) return
-    scheduledPodium.current = podiumKey
+    if (podiumRound == null || scheduledPodium.current === podiumRound) return
+    scheduledPodium.current = podiumRound
     const elapsed = store.now() - state.startedAt
-    const timers = PODIUM_SOUNDS
-      .filter((cue) => cue.at >= elapsed - 100) // al recargar en pleno podio no se repite lo ya sonado
-      .flatMap((cue) => [
-        setTimeout(() => {
-          getSound().effect(cue.effect).then((stop) => { if (cue.stopAt) stopDrumroll.current = stop })
-        }, Math.max(0, cue.at - elapsed)),
-        // el redoble del 1.º se corta con su propio reloj, unos ms ANTES de su remate:
-        // esperar al cambio de etapa (se revisa cada 200 ms) dejaría asomar la fanfarria corta
-        ...(cue.stopAt ? [setTimeout(() => { stopDrumroll.current?.(); stopDrumroll.current = null }, Math.max(0, cue.stopAt - 40 - elapsed))] : []),
-      ])
-    return () => timers.forEach(clearTimeout)
-  }, [podiumKey])
+    const sound = getSound()
+    podiumTimers.current = PODIUM_SOUNDS
+      .filter((cue) => cue.at >= elapsed - 150) // al recargar en pleno podio no se repite lo ya sonado
+      .map((cue) => setTimeout(() => {
+        if (cue.drumroll) sound.drumroll(cue.drumroll / 1000)
+        if (cue.fanfare) sound.fanfare(cue.fanfare)
+        if (cue.music) sound.play(cue.music)
+      }, Math.max(0, cue.at - elapsed)))
+  }, [podiumRound])
+  // Al salir del podio (Jugar otra vez, cerrar sala) se cancela lo pendiente.
+  useEffect(() => {
+    if (state?.phase === 'end') return
+    podiumTimers.current.forEach(clearTimeout)
+    podiumTimers.current = []
+  }, [state?.phase])
 
   /* Un efecto al entrar en cada fase clave, una vez por pregunta. */
   const phaseEffect = { reading: 'question', reveal: 'reveal', leaderboard: 'ranking' }[state?.phase]

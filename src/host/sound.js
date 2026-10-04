@@ -139,10 +139,74 @@ function createSoundEngine() {
     }
   }
 
+  /* ── Podio: redoble y mini fanfarria, sintetizados (chiptune, como el resto)
+     para que duren EXACTAMENTE lo que el guion pide y nunca queden cortados. */
+  let noise = null
+  const noiseBuffer = () => {
+    if (noise) return noise
+    noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate)
+    const d = noise.getChannelData(0)
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+    return noise
+  }
+  function snare(at, level) {
+    const src = ctx.createBufferSource()
+    src.buffer = noiseBuffer()
+    const band = ctx.createBiquadFilter()
+    band.type = 'bandpass'
+    band.frequency.value = 2200
+    band.Q.value = 0.8
+    const env = ctx.createGain()
+    env.gain.setValueAtTime(level, at)
+    env.gain.exponentialRampToValueAtTime(0.001, at + 0.07)
+    src.connect(band).connect(env).connect(master)
+    src.start(at, Math.random() * 0.5, 0.09)
+  }
+  /* Redoble que acelera y crece, y termina justo a los `seconds`: ahí aparece el puesto. */
+  function drumroll(seconds) {
+    if (ctx.state !== 'running') return
+    const t0 = ctx.currentTime
+    for (let t = 0; t < seconds - 0.03;) {
+      const p = t / seconds
+      snare(t0 + t, 0.12 + 0.5 * p * p)
+      t += 0.075 - 0.04 * p // de 75 ms entre golpes a 35 ms
+    }
+  }
+  /* "Ta-ta-ta-táaa" de 16 bits, ~0,8 s. step sube el tono: 1 = 3.º, 2 = 2.º. */
+  function fanfare(step = 1) {
+    if (ctx.state !== 'running') return
+    const t0 = ctx.currentTime
+    const root = 523.25 * 2 ** ((step - 1) * 2 / 12) // Do5, y un tono más arriba para el 2.º
+    const notes = [1, 5 / 4, 3 / 2] // arpegio mayor
+    notes.forEach((r, i) => blip(root * r, t0 + i * 0.09, { dur: 0.12, type: 'square', level: 0.22 }))
+    const hold = t0 + notes.length * 0.09
+    for (const [type, mult, level] of [['square', 2, 0.2], ['triangle', 1, 0.3], ['triangle', 0.5, 0.35]]) {
+      const osc = ctx.createOscillator()
+      const env = ctx.createGain()
+      osc.type = type
+      osc.frequency.setValueAtTime(root * mult, hold)
+      const vib = ctx.createOscillator() // un poco de vibrato en la nota larga
+      const depth = ctx.createGain()
+      vib.frequency.value = 6
+      depth.gain.value = root * mult * 0.008
+      vib.connect(depth).connect(osc.frequency)
+      env.gain.setValueAtTime(level, hold)
+      env.gain.setValueAtTime(level, hold + 0.3)
+      env.gain.exponentialRampToValueAtTime(0.001, hold + 0.55)
+      osc.connect(env).connect(master)
+      osc.start(hold)
+      vib.start(hold)
+      osc.stop(hold + 0.6)
+      vib.stop(hold + 0.6)
+    }
+  }
+
   return {
     play,
     effect,
     unlock,
+    drumroll,
+    fanfare,
     /* Últimos segundos: un tic por segundo, y doble (más agudo) en los últimos 3.
        Dos osciladores a una octava: el agudo corta a través de la música. */
     tick(secondsLeft) {

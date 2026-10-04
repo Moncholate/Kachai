@@ -4,7 +4,7 @@
 export const PODIUM_AT = {
   third: 1800,
   second: 4800,
-  drumroll: 7000, // "And the winner is…" mientras suena el redoble
+  drumroll: 7000, // "And the winner is…" mientras suena el redoble del 1.º
   first: 8700,
   rest: 11000, // del 4.º lugar hacia abajo, y el botón "Jugar otra vez"
 }
@@ -14,16 +14,18 @@ export function podiumStage(startedAt, now) {
   return Object.fromEntries(Object.entries(PODIUM_AT).map(([k, at]) => [k, t >= at]))
 }
 
-/* El efecto 'reveal' (3,2 s) es un redoble de 1,7 s seguido de un remate
-   brillante: la "fanfarria corta". */
-export const REVEAL_STING_MS = 1700
-
-/* Sonidos del podio, pedidos por la profesora:
-     3.º y 2.º   la fanfarria corta, con el remate justo cuando aparece el puesto
-     1.º         solo el redoble, cortado antes del remate; al aparecer el campeón
-                 entra la fanfarria larga (el tema 'podium') sin nada encima */
+/* Sonidos del podio, pedidos por la profesora: un redoble antes de cada puesto
+   que termina justo cuando aparece; mini fanfarria para el 3.º y el 2.º (un tono
+   más aguda); para el 1.º, la fanfarria larga (el tema 'podium') sola.
+   Duraciones en ms. La mini fanfarria dura ~800 ms: nada se pisa. */
+export const FANFARE_MS = 800
+const ROLL = 1600
+const LAST_ROLL = 2400
 export const PODIUM_SOUNDS = [
-  { at: PODIUM_AT.third - REVEAL_STING_MS, effect: 'reveal' },
-  { at: PODIUM_AT.second - REVEAL_STING_MS, effect: 'reveal' },
-  { at: PODIUM_AT.first - REVEAL_STING_MS, effect: 'reveal', stopAt: PODIUM_AT.first },
+  { at: PODIUM_AT.third - ROLL, drumroll: ROLL },
+  { at: PODIUM_AT.third, fanfare: 1 },
+  { at: PODIUM_AT.second - ROLL, drumroll: ROLL },
+  { at: PODIUM_AT.second, fanfare: 2 },
+  { at: PODIUM_AT.first - LAST_ROLL, drumroll: LAST_ROLL },
+  { at: PODIUM_AT.first, music: 'podium' },
 ]
