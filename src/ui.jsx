@@ -69,14 +69,25 @@ export function Prompt({ text, highlightWh = true, className = '' }) {
   )
 }
 
-/* Colores y figuras de las alternativas de opción múltiple (como Kahoot): la
-   figura ayuda a encontrar en el celular la misma opción que se ve proyectada. */
+/* Alternativas de opción múltiple: letra A–D y color propio. La letra ayuda a
+   encontrar en el celular la misma opción que se ve proyectada. (Sin las figuras
+   ni los cuatro colores de Kahoot: era demasiado parecido.) */
 export const CHOICE_STYLES = [
-  { shape: '▲', solid: 'bg-rose-600', ring: 'ring-rose-600', text: 'text-rose-700' },
-  { shape: '◆', solid: 'bg-blue-600', ring: 'ring-blue-600', text: 'text-blue-700' },
-  { shape: '●', solid: 'bg-amber-500', ring: 'ring-amber-500', text: 'text-amber-700' },
-  { shape: '■', solid: 'bg-green-600', ring: 'ring-green-600', text: 'text-green-700' },
+  { letter: 'A', solid: 'bg-violet-600', ring: 'ring-violet-600', text: 'text-violet-700' },
+  { letter: 'B', solid: 'bg-teal-600', ring: 'ring-teal-600', text: 'text-teal-700' },
+  { letter: 'C', solid: 'bg-orange-500', ring: 'ring-orange-500', text: 'text-orange-700' },
+  { letter: 'D', solid: 'bg-pink-600', ring: 'ring-pink-600', text: 'text-pink-700' },
 ]
+
+/* La letra de la alternativa, en una placa. light: sobre fondo claro. */
+export function ChoiceLetter({ style, light = false, className = '' }) {
+  if (!style) return null
+  return (
+    <span className={`grid place-items-center shrink-0 rounded-lg font-black ${light ? `${style.solid} text-white` : 'bg-white/25 text-white'} ${className}`}>
+      {style.letter}
+    </span>
+  )
+}
 
 /* Alternativas largas (oraciones completas) van en una columna. */
 export const choiceCols = (options) => (options.some((o) => o.length > 22) ? 'grid-cols-1' : 'grid-cols-2')
@@ -107,9 +118,15 @@ export function StreakBadge({ streak, className = '' }) {
   return (
     <span title={`${streak} correct in a row`}
       className={`inline-flex items-center gap-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 font-black px-2 leading-tight tabular-nums ${className}`}>
-      🔥 {streak}
+      {streak >= 5 ? "⭐" : "🔥"} {streak}
     </span>
   )
+}
+
+/* Nombre en racha: 3–4 seguidas, fuego; 5 o más, "modo estrella" (ver index.css). */
+export function StreakName({ name, streak, className = '' }) {
+  const look = streak >= 5 ? 'streak-star' : streak >= STREAK_MIN ? 'streak-fire' : ''
+  return <span className={`${look} ${className}`}>{name}</span>
 }
 
 export function RoleTag({ part, className = '' }) {

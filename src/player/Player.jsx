@@ -5,7 +5,7 @@ import { normalizeQuestion } from '../game/library.js'
 import { podiumStage } from '../game/podium.js'
 import { TEAM_MAX, membersOf, mvpOf, presetOf, teamIdsOf, teamRanking } from '../game/teams.js'
 import confetti from 'canvas-confetti'
-import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
+import { Button, CHOICE_STYLES, Center, ChoiceLetter, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, StreakName, TimerBar, choiceCols } from '../ui.jsx'
 
 /* sessionStorage y no localStorage: cada pestaña es un jugador distinto (útil
    para probar), y recargar la página conserva al mismo jugador. Si el celular
@@ -229,7 +229,7 @@ function PlayerRoom({ store, pin, pid, onLeave }) {
         <Logo className="text-xl" />
         <span className="flex-1 min-w-0 flex items-center justify-end gap-2">
           {myTeam && <span title={myTeam.name} className="text-xl shrink-0">{myTeam.emoji}</span>}
-          <span className="font-bold truncate">{profile.name}</span>
+          <StreakName name={profile.name} streak={score?.streak} className="font-bold truncate" />
           <StreakBadge streak={score?.streak} className="text-sm shrink-0" />
         </span>
         <span className="rounded-full bg-slate-900 text-white px-3 py-1 text-sm font-black tabular-nums"
@@ -550,7 +550,7 @@ function ChoiceForm({ question, timer, onSubmit }) {
           return (
             <button type="button" key={o} onClick={() => choose(o)} disabled={Boolean(sent)}
               className={`min-h-[6rem] rounded-2xl px-3 py-4 flex items-center gap-3 text-left text-white text-lg font-bold transition active:scale-95 ${st.solid} ${sent && sent !== o ? 'opacity-40' : ''}`}>
-              <span className="text-2xl shrink-0">{st.shape}</span>
+              <ChoiceLetter style={st} className="w-9 h-9 text-xl" />
               <span className="flex-1">{o}</span>
             </button>
           )
@@ -574,11 +574,11 @@ function ChoiceResult({ question, solution, answer, score, secret, practice }) {
       <Prompt text={question.prompt} highlightWh={false} className="text-lg text-center" />
       {answer && mine >= 0 && (
         <AnswerTile label="Your answer" right={right}
-          className={`${CHOICE_STYLES[mine].solid} text-white`} shape={CHOICE_STYLES[mine].shape} text={answer.choice} />
+          className={`${CHOICE_STYLES[mine].solid} text-white`} letter={<ChoiceLetter style={CHOICE_STYLES[mine]} className="w-8 h-8" />} text={answer.choice} />
       )}
       {!right && (
         <AnswerTile label="Correct answer" right
-          className="bg-green-50 text-green-800 border-2 border-green-500" shape={CHOICE_STYLES[correct]?.shape} text={solution.answer} />
+          className="bg-green-50 text-green-800 border-2 border-green-500" letter={<ChoiceLetter style={CHOICE_STYLES[correct]} light className="w-8 h-8" />} text={solution.answer} />
       )}
     </div>
   )
@@ -605,12 +605,12 @@ function Verdict({ status, score, secret, practice, detail }) {
   )
 }
 
-function AnswerTile({ label, right, className, shape, text }) {
+function AnswerTile({ label, right, className, letter, text }) {
   return (
     <div>
       <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-1">{label}</p>
       <div className={`relative rounded-2xl px-4 py-3 flex items-center gap-3 text-lg font-black ${className}`}>
-        {shape && <span className="text-2xl">{shape}</span>}
+        {letter}
         <span className="flex-1">{text}</span>
         <span className={`grid place-items-center w-9 h-9 rounded-full text-xl font-black shrink-0 ${right ? 'bg-green-600 text-white' : 'bg-white text-rose-600 ring-4 ring-rose-600'}`}>
           {right ? '✓' : '✗'}
@@ -625,7 +625,7 @@ function MyChoices({ answer, options }) {
     const st = CHOICE_STYLES[options?.indexOf(answer.choice)]
     return (
       <span className={`inline-block rounded-lg px-3 py-1 font-bold text-white ${st?.solid ?? 'bg-slate-700'}`}>
-        {st?.shape} {answer.choice}
+        {st?.letter}. {answer.choice}
       </span>
     )
   }

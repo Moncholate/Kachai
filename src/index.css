@@ -8,3 +8,27 @@ html, body {
   font-family: ui-rounded, 'Segoe UI', system-ui, -apple-system, sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Nombres en racha (ver StreakName en ui.jsx). Fuego: resplandor que titila.
+   Estrella: arcoíris que corre por las letras, con brillo dorado. */
+.streak-fire {
+  color: #c2410c;
+  animation: kachai-flicker 0.8s ease-in-out infinite alternate;
+}
+@keyframes kachai-flicker {
+  from { text-shadow: 0 0 4px rgba(251, 146, 60, 0.8), 0 -2px 8px rgba(239, 68, 68, 0.55); }
+  to { text-shadow: 0 0 10px rgba(251, 191, 36, 1), 0 -4px 16px rgba(239, 68, 68, 0.85); }
+}
+.streak-star {
+  background: linear-gradient(90deg, #f43f5e, #f59e0b, #facc15, #22c55e, #3b82f6, #a855f7, #f43f5e);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: kachai-rainbow 1.2s linear infinite, kachai-starglow 0.6s ease-in-out infinite alternate;
+}
+@keyframes kachai-rainbow { to { background-position: 300% 0; } }
+@keyframes kachai-starglow {
+  from { filter: drop-shadow(0 0 3px rgba(250, 204, 21, 0.6)); }
+  to { filter: drop-shadow(0 0 10px rgba(250, 204, 21, 1)); }
+}

@@ -3,8 +3,8 @@ import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
 import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } from '../game/sets.js'
-import { WH_TYPES, buildPublicQuestion, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
-import { Button, CHOICE_STYLES, Center, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, TimerBar, choiceCols } from '../ui.jsx'
+import { STREAK_MIN, WH_TYPES, buildPublicQuestion, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
+import { Button, CHOICE_STYLES, Center, ChoiceLetter, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, StreakName, TimerBar, choiceCols } from '../ui.jsx'
 import { answeringTrack, getSound } from './sound.js'
 import Editor, { blankQuestion } from './Editor.jsx'
 import ClassReport from './ClassReport.jsx'
@@ -229,7 +229,6 @@ function HostRoom({ store, pin }) {
       const everyone = activeIds.length > 0 && activeIds.every((id) => answers[id])
       if (timeUp || everyone) {
         fired.current = key
-        if (!everyone) getSound().effect('timesUp')
         reveal()
       }
     }
@@ -288,10 +287,15 @@ function HostRoom({ store, pin }) {
       else if (rate < 0.4) later(1800, 'crowdNo')
     }
     /* Ranking: 🔄 si alguien adelantó a su rival, y luego ⚔️ si hay duelos. */
-    if (state.phase === 'leaderboard' && state.board) {
-      const overtook = Object.keys(state.board.overtakes || {}).length > 0
+    /* (Sin duelos ni adelantamientos Firebase no guarda el tablero: puede no existir.) */
+    if (state.phase === 'leaderboard') {
+      const overtook = Object.keys(state.board?.overtakes || {}).length > 0
       if (overtook) later(300, 'overtake')
-      if (Object.keys(state.board.duels || {}).length > 0) later(overtook ? 900 : 400, 'duel')
+      const dueled = Object.keys(state.board?.duels || {}).length > 0
+      if (dueled) later(overtook ? 900 : 400, 'duel')
+      // 🔥 alguien llegó a 3 seguidas (fuego) o a 5, 10… (estrella)
+      const milestone = Object.values(scores).some((s) => s.streak === STREAK_MIN || (s.streak >= 5 && s.streak % 5 === 0))
+      if (milestone) setTimeout(() => sound.powerUp(), overtook || dueled ? 1500 : 500)
     }
   }, [phaseKey, phaseEffect])
 
@@ -306,6 +310,12 @@ function HostRoom({ store, pin }) {
     if (secondsLeft >= 1 && secondsLeft <= 5 && lastTick.current !== secondsLeft) {
       lastTick.current = secondsLeft
       getSound().tick(secondsLeft)
+    }
+    /* ⏰ Justo al llegar a cero. La revelación espera después un margen (GRACE_MS)
+       por las respuestas enviadas en el último segundo; la bocina no lo espera. */
+    if (secondsLeft <= 0 && lastTick.current !== 0) {
+      lastTick.current = 0
+      getSound().effect('timesUp')
     }
   }, [secondsLeft])
 
@@ -937,7 +947,7 @@ function BoardRow({ row, place }) {
     <div className={`flex items-center gap-4 rounded-2xl px-5 py-3 text-xl ${row.tint ?? 'bg-white border border-slate-200'}`}>
       <span className="w-8 font-black text-slate-400">{place}</span>
       <span className="flex-1 min-w-0 flex items-center gap-2">
-        <span className="font-bold truncate">{row.name}</span>
+        <StreakName name={row.name} streak={row.streak} className="font-bold truncate" />
         {row.extra}
       </span>
       {row.gain > 0 && <span className="text-green-600 font-bold">+{row.gain}</span>}
@@ -1077,7 +1087,7 @@ function ChoiceTiles({ options, answer, votes }) {
         return (
           <div key={o}
             className={`relative overflow-hidden rounded-2xl px-5 py-4 flex items-center gap-4 text-white text-2xl md:text-3xl font-bold transition ${st.solid} ${revealed && !right ? 'opacity-35' : ''} ${revealed && right ? 'ring-8 ring-green-300' : ''}`}>
-            <span className="text-3xl shrink-0">{st.shape}</span>
+            <ChoiceLetter style={st} className="w-11 h-11 text-2xl" />
             <span className="flex-1">{o}</span>
             {revealed && right && <span className="text-3xl">✓</span>}
             {votes && <span className="rounded-full bg-white/25 px-3 text-xl tabular-nums">{votes[i]}</span>}
