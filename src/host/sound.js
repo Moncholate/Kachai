@@ -37,6 +37,7 @@ const EFFECTS = {
   crowdNo: 'crowd-no.ogg', // la mayoría falló
   timesUp: 'times-up.ogg', // se acabó el tiempo
   join: 'join.ogg', // alguien entró a la sala
+  streak: 'streak.ogg', // 🔥 alguien llegó a 3 seguidas, o a 5, 10…
 }
 const MUSIC_LEVEL = 0.8 // deja aire a los efectos por encima de la música
 const DUCKED_LEVEL = 0.25 // últimos segundos: la música se aparta para que se oigan los tics
@@ -173,21 +174,6 @@ function createSoundEngine() {
     },
     /* Alguien entró a la sala. */
     join() { effect('join') },
-    /* 🔥 Racha (3 seguidas, o 5, 10…): power-up de 16 bits, arpegio que sube
-       rapidísimo dos octavas y remata con un destello. */
-    powerUp() {
-      if (ctx.state !== 'running') return
-      const t = ctx.currentTime
-      const steps = [0, 4, 7, 12, 16, 19, 24, 28, 31, 36] // arpegio mayor, tres octavas
-      steps.forEach((semi, i) => {
-        const f = 392 * 2 ** (semi / 12) // desde Sol4
-        blip(f, t + i * 0.045, { dur: 0.08, type: 'square', level: 0.16 })
-        blip(f * 2, t + i * 0.045, { dur: 0.05, type: 'triangle', level: 0.1 })
-      })
-      const end = t + steps.length * 0.045
-      blip(392 * 8, end, { dur: 0.35, type: 'triangle', level: 0.18 })
-      blip(392 * 6, end + 0.06, { dur: 0.3, type: 'triangle', level: 0.12 })
-    },
     setVolume(v) { volume = v; prefs.set('volume', v); applyVolume(); emit() },
     setMuted(m) { muted = m; prefs.set('muted', m); applyVolume(); emit() },
     state,

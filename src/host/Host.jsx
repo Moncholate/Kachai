@@ -295,7 +295,7 @@ function HostRoom({ store, pin }) {
       if (dueled) later(overtook ? 900 : 400, 'duel')
       // 🔥 alguien llegó a 3 seguidas (fuego) o a 5, 10… (estrella)
       const milestone = Object.values(scores).some((s) => s.streak === STREAK_MIN || (s.streak >= 5 && s.streak % 5 === 0))
-      if (milestone) setTimeout(() => sound.powerUp(), overtook || dueled ? 1500 : 500)
+      if (milestone) later(overtook || dueled ? 1500 : 500, 'streak')
     }
   }, [phaseKey, phaseEffect])
 

@@ -25,6 +25,7 @@ export const SFX = {
   applause: ['Champion round of applause.wav', 4000, 700, -19],
   join: ['User connected.wav', 900, 150, -21],
   'times-up': ["Time's up.wav", 750, 60, -15],
+  streak: ['Streak.wav', 900, 120, -16],
 }
 
 const only = process.argv[2]
