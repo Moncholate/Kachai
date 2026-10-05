@@ -61,38 +61,79 @@ export function customSet(id, info, questions) {
   }
 }
 
-export function imageError(image) {
+/* Los mensajes para el docente, en el idioma de la sala. Viven aquí y no en
+   i18n.jsx para que este archivo siga siendo puro (lo prueba Node sin React).
+   Sin idioma, español: así estaban y así los esperan las pruebas. */
+const MENSAJES = {
+  es: {
+    imagenPesada: 'La imagen es demasiado pesada.',
+    imagenHttps: 'El enlace de la imagen debe empezar con https://',
+    faltaPregunta: 'Falta la pregunta.',
+    rangoAlternativas: (a, b) => `Debe tener de ${a} a ${b} alternativas.`,
+    alternativaVacia: 'Hay una alternativa vacía.',
+    alternativasRepetidas: 'Hay alternativas repetidas.',
+    marcaCorrecta: 'Marca cuál es la alternativa correcta.',
+    eligeWh: 'Elige qué tipo de dato pide la pregunta.',
+    parte: { subject: 'sujeto', verb: 'verbo' },
+    faltaParte: (p) => `Falta al menos un ${p} correcto.`,
+    choque: (c, p) => `“${c}” es ${p} correcto y trampa a la vez.`,
+    sinPreguntas: 'La actividad necesita al menos una pregunta.',
+    maxPreguntas: (n) => `Máximo ${n} preguntas.`,
+  },
+  en: {
+    imagenPesada: 'The image is too large.',
+    imagenHttps: 'The image link must start with https://',
+    faltaPregunta: 'The question is missing.',
+    rangoAlternativas: (a, b) => `It must have ${a} to ${b} options.`,
+    alternativaVacia: 'There is an empty option.',
+    alternativasRepetidas: 'There are repeated options.',
+    marcaCorrecta: 'Mark the correct option.',
+    eligeWh: 'Choose what kind of information the question asks for.',
+    parte: { subject: 'subject', verb: 'verb' },
+    faltaParte: (p) => `At least one correct ${p} is missing.`,
+    choque: (c, p) => `“${c}” is both a correct ${p} and a trap.`,
+    sinPreguntas: 'The activity needs at least one question.',
+    maxPreguntas: (n) => `At most ${n} questions.`,
+  },
+}
+const mensajes = (idioma) => MENSAJES[idioma] ?? MENSAJES.es
+
+export function imageError(image, idioma) {
+  const m = mensajes(idioma)
   if (!image) return null
-  if (image.startsWith('data:image/')) return image.length > MAX_IMAGE_CHARS ? 'La imagen es demasiado pesada.' : null
-  return /^https:\/\/\S+$/.test(image) ? null : 'El enlace de la imagen debe empezar con https://'
+  if (image.startsWith('data:image/')) return image.length > MAX_IMAGE_CHARS ? m.imagenPesada : null
+  return /^https:\/\/\S+$/.test(image) ? null : m.imagenHttps
 }
 
 /* Errores de UNA pregunta, en palabras para el docente. [] = se puede guardar. */
-export function questionErrors(q) {
+export function questionErrors(q, idioma) {
+  const m = mensajes(idioma)
   const errors = []
-  if (!q.prompt?.trim()) errors.push('Falta la pregunta.')
-  const img = imageError(q.image)
+  if (!q.prompt?.trim()) errors.push(m.faltaPregunta)
+  const img = imageError(q.image, idioma)
   if (img) errors.push(img)
   if (isChoice(q)) {
     const options = q.options.map((o) => o.trim())
-    if (options.length < MIN_OPTIONS || options.length > MAX_OPTIONS) errors.push(`Debe tener de ${MIN_OPTIONS} a ${MAX_OPTIONS} alternativas.`)
-    if (options.some((o) => !o)) errors.push('Hay una alternativa vacía.')
-    if (new Set(options.map(normalize)).size !== options.length) errors.push('Hay alternativas repetidas.')
-    if (!options.includes(q.answer?.trim())) errors.push('Marca cuál es la alternativa correcta.')
+    if (options.length < MIN_OPTIONS || options.length > MAX_OPTIONS) errors.push(m.rangoAlternativas(MIN_OPTIONS, MAX_OPTIONS))
+    if (options.some((o) => !o)) errors.push(m.alternativaVacia)
+    if (new Set(options.map(normalize)).size !== options.length) errors.push(m.alternativasRepetidas)
+    if (!options.includes(q.answer?.trim())) errors.push(m.marcaCorrecta)
     return errors
   }
-  if (!WH_TYPES[q.wh]) errors.push('Elige qué tipo de dato pide la pregunta.')
-  for (const [part, label] of [['subject', 'sujeto'], ['verb', 'verbo']]) {
+  if (!WH_TYPES[q.wh]) errors.push(m.eligeWh)
+  for (const part of ['subject', 'verb']) {
+    const label = m.parte[part]
     const accept = q[part].accept.map((a) => a.trim()).filter(Boolean)
-    if (!accept.length) errors.push(`Falta al menos un ${label} correcto.`)
+    if (!accept.length) errors.push(m.faltaParte(label))
     const clash = q[part].distractors.find((d) => accept.map(normalize).includes(normalize(d)))
-    if (clash) errors.push(`“${clash}” es ${label} correcto y trampa a la vez.`)
+    if (clash) errors.push(m.choque(clash, label))
   }
   return errors
 }
 
-export function setErrors(questions) {
-  if (!questions.length) return ['La actividad necesita al menos una pregunta.']
-  if (questions.length > MAX_QUESTIONS) return [`Máximo ${MAX_QUESTIONS} preguntas.`]
+export function setErrors(questions, idioma) {
+  const m = mensajes(idioma)
+  if (!questions.length) return [m.sinPreguntas]
+  if (questions.length > MAX_QUESTIONS) return [m.maxPreguntas(MAX_QUESTIONS)]
   return []
 }

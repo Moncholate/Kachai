@@ -1,4 +1,5 @@
 import { STREAK_MIN, splitWh } from './game/logic.js'
+import { useT } from './i18n.jsx'
 
 /* Colores de rol del Grammar Hub (design-tokens): sujeto azul, verbo rojo grave,
    wh teal. Clases literales para que Tailwind las encuentre. */
@@ -114,9 +115,10 @@ export function TimerBar({ start, ms, now, className = '' }) {
 
 /* 🔥 N junto al nombre mientras dure una racha de STREAK_MIN o más. */
 export function StreakBadge({ streak, className = '' }) {
+  const t = useT()
   if (!(streak >= STREAK_MIN)) return null
   return (
-    <span title={`${streak} correct in a row`}
+    <span title={t('seguidasTitulo', streak)}
       className={`inline-flex items-center gap-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-300 font-black px-2 leading-tight tabular-nums ${className}`}>
       {streak >= 5 ? "⭐" : "🔥"} {streak}
     </span>
@@ -130,10 +132,11 @@ export function StreakName({ name, streak, className = '' }) {
 }
 
 export function RoleTag({ part, className = '' }) {
+  const t = useT()
   const r = ROLES[part]
   return (
     <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white ${r.solid} ${className}`}>
-      {r.label}
+      {t(`rol_${part}`)}
     </span>
   )
 }

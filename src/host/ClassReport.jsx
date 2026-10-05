@@ -1,18 +1,25 @@
 import { reportCsv } from '../game/report.js'
 import { Button, Prompt, ROLES, RoleTag } from '../ui.jsx'
+import { useT } from '../i18n.jsx'
 
 /* Resumen del curso para el profesor (ver game/report.js). Todo lo de arriba se
    puede proyectar: datos del curso y destacados en positivo. El detalle por
    alumno va plegado y avisado, para no exponer a nadie frente al curso. */
 
-const PART_LABEL = { subject: 'Subject', verb: 'Verb', wh: 'Information' }
+const PARTES = ['subject', 'verb', 'wh']
 const tone = (rate) => (rate >= 75 ? 'bg-green-500' : rate >= 50 ? 'bg-amber-400' : 'bg-rose-500')
 
 export default function ClassReport({ report, title, closeLabel, onClose }) {
+  const t = useT()
   const { overall, parts, weakestPart, hardest, highlights, questions, students } = report
 
   const download = () => {
-    const blob = new Blob(['﻿' + reportCsv(report, title)], { type: 'text/csv;charset=utf-8' })
+    const encabezados = {
+      student: t('csvAlumno'), points: t('csvPuntos'), fullyCorrect: t('csvCorrectas'), answered: t('csvRespondio'),
+      question: t('csvPregunta'), prompt: t('csvEnunciado'), correctAnswer: t('csvRespuesta'), classResult: t('csvResultado'),
+      pctCorrect: (p) => t('pctCorrecto', p),
+    }
+    const blob = new Blob(['﻿' + reportCsv(report, title, encabezados)], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `kachai-${new Date().toISOString().slice(0, 10)}.csv`
@@ -24,23 +31,23 @@ export default function ClassReport({ report, title, closeLabel, onClose }) {
     <section className="max-w-5xl mx-auto flex flex-col gap-5 pb-24">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-0">
-          <h2 className="text-4xl font-black">📊 Class report</h2>
+          <h2 className="text-4xl font-black">{t('reporteCurso')}</h2>
           <p className="text-slate-500 font-bold">{title}</p>
         </div>
         <Button variant="ghost" onClick={onClose}>{closeLabel}</Button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi value={`${overall.accuracy}%`} label="fully correct answers" accent={tone(overall.accuracy)} />
-        <Kpi value={`${overall.participation}%`} label="participation" accent={tone(overall.participation)} />
-        <Kpi value={overall.students} label="students" />
-        <Kpi value={overall.questions} label="questions" />
+        <Kpi value={`${overall.accuracy}%`} label={t('kpiCorrectas')} accent={tone(overall.accuracy)} />
+        <Kpi value={`${overall.participation}%`} label={t('kpiParticipacion')} accent={tone(overall.participation)} />
+        <Kpi value={overall.students} label={t('kpiAlumnos')} />
+        <Kpi value={overall.questions} label={t('kpiPreguntas')} />
       </div>
 
       {parts && (
-        <Card title="🧩 Answer Builder · by part">
+        <Card title={t('porParte')}>
           <div className="grid md:grid-cols-3 gap-3">
-            {Object.keys(PART_LABEL).map((p) => (
+            {PARTES.map((p) => (
               <div key={p} className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <RoleTag part={p} />
@@ -52,19 +59,17 @@ export default function ClassReport({ report, title, closeLabel, onClose }) {
           </div>
           {parts[weakestPart] < 100 && (
             <p className="mt-3 text-lg">
-              Hardest part: <b className={ROLES[weakestPart].text}>{PART_LABEL[weakestPart]}</b> ({parts[weakestPart]}% right)
-              {weakestPart === 'verb' && ' — the verb carries the tense: “did … work” → “worked”.'}
-              {weakestPart === 'subject' && ' — remember: the answer’s subject, not the question’s (“you” → “I”).'}
-              {weakestPart === 'wh' && ' — what kind of information does the wh-word ask for?'}
+              {t('parteDificil')} <b className={ROLES[weakestPart].text}>{t(`rol_${weakestPart}`)}</b>{t('pctBien', parts[weakestPart])}
+              {t(`consejo_${weakestPart}`)}
             </p>
           )}
         </Card>
       )}
 
       <div className="grid md:grid-cols-2 gap-5">
-        <Card title="🔁 Review together">
+        <Card title={t('repasarJuntos')}>
           {hardest.length === 0
-            ? <p className="text-lg">Everyone got everything right! 🎉</p>
+            ? <p className="text-lg">{t('todosBien')}</p>
             : (
               <ol className="flex flex-col gap-3">
                 {hardest.map((q) => (
@@ -82,18 +87,18 @@ export default function ClassReport({ report, title, closeLabel, onClose }) {
             )}
         </Card>
 
-        <Card title="🌟 Highlights">
+        <Card title={t('destacados')}>
           <ul className="flex flex-col gap-2 text-lg">
-            {highlights.mvp && <li>⭐ <b>{highlights.mvp.name}</b> — MVP, {highlights.mvp.total} points</li>}
-            {highlights.perfect.length > 0 && <li>💯 All correct: <b>{highlights.perfect.join(', ')}</b></li>}
-            {highlights.streak && <li>🔥 Longest streak: <b>{highlights.streak.name}</b>, {highlights.streak.streak} in a row</li>}
-            {highlights.improved && <li>📈 Most improved: <b>{highlights.improved.name}</b> (+{highlights.improved.improvement}% in the second half)</li>}
-            {!highlights.mvp && <li className="text-slate-500">Play a game to see highlights.</li>}
+            {highlights.mvp && <li>⭐ <b>{highlights.mvp.name}</b>{t('destacadoMvp', highlights.mvp.total)}</li>}
+            {highlights.perfect.length > 0 && <li>{t('todoCorrecto')}<b>{highlights.perfect.join(', ')}</b></li>}
+            {highlights.streak && <li>{t('rachaLarga')}<b>{highlights.streak.name}</b>{t('enSeguidas', highlights.streak.streak)}</li>}
+            {highlights.improved && <li>{t('masMejoro')}<b>{highlights.improved.name}</b>{t('segundaMitad', highlights.improved.improvement)}</li>}
+            {!highlights.mvp && <li className="text-slate-500">{t('juegaParaDestacados')}</li>}
           </ul>
         </Card>
       </div>
 
-      <Card title="📋 Question by question">
+      <Card title={t('preguntaPorPregunta')}>
         <ol className="flex flex-col gap-3">
           {questions.map((q) => (
             <li key={q.index} className="grid grid-cols-[2.5rem_1fr_9rem] items-center gap-x-3 gap-y-1">
@@ -112,12 +117,12 @@ export default function ClassReport({ report, title, closeLabel, onClose }) {
 
       <details className="rounded-3xl border-2 border-dashed border-slate-300 bg-white p-5">
         <summary className="cursor-pointer font-black text-lg">
-          👁 Detalle por alumno <span className="font-bold text-amber-700">— solo para ti: evita proyectarlo</span>
+          {t('detalleAlumno')} <span className="font-bold text-amber-700">{t('soloParaTi')}</span>
         </summary>
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left">
             <thead className="text-sm text-slate-500">
-              <tr><th className="py-1">Alumno</th><th>Puntos</th><th>Correctas</th><th>Respondió</th><th>Falló en</th></tr>
+              <tr><th className="py-1">{t('colAlumno')}</th><th>{t('colPuntos')}</th><th>{t('colCorrectas')}</th><th>{t('colRespondio')}</th><th>{t('colFallo')}</th></tr>
             </thead>
             <tbody>
               {students.map((s) => (
@@ -132,17 +137,18 @@ export default function ClassReport({ report, title, closeLabel, onClose }) {
             </tbody>
           </table>
         </div>
-        <Button variant="ghost" className="mt-4 text-sm" onClick={download}>⬇ Descargar CSV (Excel)</Button>
+        <Button variant="ghost" className="mt-4 text-sm" onClick={download}>{t('descargarCsv')}</Button>
       </details>
     </section>
   )
 }
 
 function Mistake({ q, compact = false }) {
+  const t = useT()
   const cls = compact ? 'text-sm text-slate-500' : 'pl-8 text-sm text-slate-600'
-  if (q.topWrong) return <p className={cls}>Most common mistake: <b className="text-rose-600">“{q.topWrong.text}”</b> ({q.topWrong.count})</p>
-  if (q.weakestPart) return <p className={cls}>Most missed part: <b className={ROLES[q.weakestPart].text}>{PART_LABEL[q.weakestPart]}</b></p>
-  if (q.answeredRate < 100) return <p className={cls}>{100 - q.answeredRate}% didn’t answer</p>
+  if (q.topWrong) return <p className={cls}>{t('errorComun')} <b className="text-rose-600">“{q.topWrong.text}”</b> ({q.topWrong.count})</p>
+  if (q.weakestPart) return <p className={cls}>{t('parteMasFallada')} <b className={ROLES[q.weakestPart].text}>{t(`rol_${q.weakestPart}`)}</b></p>
+  if (q.answeredRate < 100) return <p className={cls}>{t('noRespondieron', 100 - q.answeredRate)}</p>
   return compact ? <span /> : null
 }
 

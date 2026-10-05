@@ -8,9 +8,11 @@ const PART_NAMES = ['subject', 'verb', 'wh']
 const asList = (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : [])
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0)
 
-export function solutionText(q) {
+/* `whLabel` nombra el tipo de información en el idioma de la sala; sin él, el
+   rótulo en inglés de logic.js. */
+export function solutionText(q, whLabel = (k) => WH_TYPES[k]) {
   if (isChoice(q)) return q.answer
-  return `${q.subject.accept.join(' / ')} · ${q.verb.accept.join(' / ')} · ${WH_TYPES[q.wh]}`
+  return `${q.subject.accept.join(' / ')} · ${q.verb.accept.join(' / ')} · ${whLabel(q.wh)}`
 }
 
 /* La racha más larga de preguntas enteras bien, recorriendo el historial en orden. */
@@ -24,7 +26,7 @@ function longestStreak(entries) {
   return best
 }
 
-export function buildReport(questions, players, scores) {
+export function buildReport(questions, players, scores, whLabel) {
   const ids = Object.keys(players).filter((id) => scores[id])
   const n = questions.length
 
@@ -51,7 +53,7 @@ export function buildReport(questions, players, scores) {
     const answered = entries.filter((e) => e?.answer)
     const fullyRight = entries.filter((e) => e && asList(e.parts).every(Boolean) && asList(e.parts).length)
     const base = {
-      index: i, prompt: q.prompt, kind: isChoice(q) ? 'choice' : 'builder', solution: solutionText(q),
+      index: i, prompt: q.prompt, kind: isChoice(q) ? 'choice' : 'builder', solution: solutionText(q, whLabel),
       correctRate: pct(fullyRight.length, students.length), answeredRate: pct(answered.length, students.length),
     }
     if (isChoice(q)) {
@@ -101,17 +103,24 @@ export function buildReport(questions, players, scores) {
 }
 
 /* CSV para el registro del profesor: una fila por alumno, una columna por pregunta. */
-export function reportCsv(report, title = '') {
+/* `h` = los encabezados en el idioma de la sala; sin él, en inglés. */
+const CSV_EN = {
+  student: 'Student', points: 'Points', fullyCorrect: 'Fully correct', answered: 'Answered',
+  question: 'Question', prompt: 'Prompt', correctAnswer: 'Correct answer', classResult: 'Class result',
+  pctCorrect: (p) => `${p}% correct`,
+}
+
+export function reportCsv(report, title = '', h = CSV_EN) {
   const esc = (v) => `"${String(v).replace(/"/g, '""')}"`
-  const head = ['Student', 'Points', 'Fully correct', 'Answered', ...report.questions.map((q) => `Q${q.index + 1}`)]
+  const head = [h.student, h.points, h.fullyCorrect, h.answered, ...report.questions.map((q) => `Q${q.index + 1}`)]
   const rows = report.students.map((s) => [
     s.name, s.total, `${s.correct}/${report.overall.questions}`, `${s.answered}/${report.overall.questions}`,
     ...report.questions.map((q) => (s.missed.includes(q.index + 1) ? 'x' : 'ok')),
   ])
-  const legend = report.questions.map((q) => [`Q${q.index + 1}`, q.prompt, q.solution, `${q.correctRate}% correct`])
+  const legend = report.questions.map((q) => [`Q${q.index + 1}`, q.prompt, q.solution, h.pctCorrect(q.correctRate)])
   return [
     title ? [title] : [],
     head, ...rows, [],
-    ['Question', 'Prompt', 'Correct answer', 'Class result'], ...legend,
+    [h.question, h.prompt, h.correctAnswer, h.classResult], ...legend,
   ].map((r) => r.map(esc).join(',')).join('\n')
 }

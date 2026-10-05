@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
 import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } from '../game/sets.js'
-import { STREAK_MIN, WH_TYPES, buildPublicQuestion, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
+import { STREAK_MIN, buildPublicQuestion, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, CHOICE_STYLES, Center, ChoiceLetter, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, StreakName, TimerBar, choiceCols } from '../ui.jsx'
 import { answeringTrack, getSound } from './sound.js'
 import Editor, { blankQuestion } from './Editor.jsx'
@@ -19,6 +19,7 @@ import {
   suggestTeamCount, teamIdsOf, teamRanking,
 } from '../game/teams.js'
 import confetti from 'canvas-confetti'
+import { IDIOMA_POR_DEFECTO, ProveedorIdioma, SelectorIdioma, nombreEquipo, traducir, useT, valido } from '../i18n.jsx'
 
 /* El navegador del profesor es el "servidor" de la actividad: baraja, lleva el
    cronómetro, corrige y reparte puntos. La base de datos solo transporta. Todo el
@@ -28,6 +29,13 @@ const PIN_KEY = 'kachai-host-pin'
 const savedPin = {
   get() { try { return sessionStorage.getItem(PIN_KEY) } catch { return null } },
   set(v) { try { v ? sessionStorage.setItem(PIN_KEY, v) : sessionStorage.removeItem(PIN_KEY) } catch { /* sin storage */ } },
+}
+
+/* El último idioma que eligió el docente en este navegador: la sala nueva parte
+   con él. */
+export const IDIOMA_KEY = 'kachai-idioma'
+export const idiomaGuardado = () => {
+  try { return valido(localStorage.getItem(IDIOMA_KEY) || IDIOMA_POR_DEFECTO) } catch { return IDIOMA_POR_DEFECTO }
 }
 
 /* Margen tras el cero para que alcance a llegar una respuesta enviada en el último segundo. */
@@ -40,7 +48,7 @@ async function openRoom(store) {
   do pin = String(100000 + Math.floor(Math.random() * 900000))
   while (await store.get(`rooms/${pin}/meta`))
   await store.update(`rooms/${pin}`, {
-    meta: { createdAt: store.stamp(), setId: SETS[0].id, mode: 'select', readSec: 8, answerSec: 30 },
+    meta: { createdAt: store.stamp(), setId: SETS[0].id, mode: 'select', readSec: 8, answerSec: 30, lang: idiomaGuardado() },
     state: { phase: 'lobby', round: 0 },
   })
   savedPin.set(pin)
@@ -59,14 +67,17 @@ export default function Host() {
     openRoom(store).then(setPin, (e) => setError(e.message))
   }, [store])
 
-  if (error) return <Center>No se pudo crear la sala: {error}</Center>
-  if (!pin) return <Center>Creando sala…</Center>
+  if (error) return <Center>{traducir(idiomaGuardado(), 'noSeCreo', error)}</Center>
+  if (!pin) return <Center>{traducir(idiomaGuardado(), 'creandoSala')}</Center>
   return <HostRoom store={store} pin={pin} />
 }
 
 function HostRoom({ store, pin }) {
   const base = `rooms/${pin}`
   const meta = useValue(store, `${base}/meta`)
+  /* Todo el proyector, también los controles, va en el idioma de la sala. */
+  const idioma = valido(meta?.lang)
+  const t = (clave, ...args) => traducir(idioma, clave, ...args)
   const state = useValue(store, `${base}/state`)
   const players = useValue(store, `${base}/players`) || {}
   const online = useValue(store, `${base}/online`) || {}
@@ -100,7 +111,10 @@ function HostRoom({ store, pin }) {
   const current = set && inGame ? questionAt(state.qIndex) : null
   const activeIds = Object.keys(players).filter((id) => online[id] !== false)
   const teamMode = meta?.teamMode === 'teams'
-  const teams = meta?.teams || {}
+  /* Los nombres de equipo en el idioma de la sala (si el profesor no los cambió):
+     así salen traducidos en el ranking, los duelos y el podio. */
+  const teams = useMemo(() => Object.fromEntries(Object.entries(meta?.teams || {})
+    .map(([id, tm]) => [id, { ...tm, name: nombreEquipo(t, id, tm) }])), [meta?.teams, idioma])
   const teamIds = teamIdsOf(teams)
 
   /* Quien no tiene equipo (no eligió, o llegó tarde) va al más pequeño. */
@@ -147,13 +161,13 @@ function HostRoom({ store, pin }) {
   })
   const next = () => (isLast ? showPodium() : goQuestion(state.qIndex + 1))
   const backToLobby = () => {
-    if (set) setLastReport({ report: buildReport(set.questions, players, scores), title: activityLabel(set) })
+    if (set) setLastReport({ report: buildReport(set.questions, players, scores, (k) => t(`wh_${k}`)), title: activityLabel(set) })
     setReportOpen(false)
     return store.update(base, { answers: null, scores: null, state: { phase: 'lobby', round: state.round || 0 } })
   }
   const kick = (id) => store.update(base, { [`players/${id}`]: null, [`scores/${id}`]: null, [`online/${id}`]: null })
   const closeRoom = async () => {
-    if (!confirm('¿Cerrar la sala? Los alumnos quedarán fuera.')) return
+    if (!confirm(t('confirmarCerrar'))) return
     await store.remove(base)
     savedPin.set(null)
     location.hash = ''
@@ -329,33 +343,34 @@ function HostRoom({ store, pin }) {
   if (meta === null) {
     return (
       <Center>
-        <p className="mb-4">Esta sala ya no existe.</p>
-        <Button onClick={() => { savedPin.set(null); location.reload() }}>Crear otra sala</Button>
+        <p className="mb-4">{t('salaNoExiste')}</p>
+        <Button onClick={() => { savedPin.set(null); location.reload() }}>{t('crearOtraSala')}</Button>
       </Center>
     )
   }
-  if (!meta || !state) return <Center>Cargando sala…</Center>
+  if (!meta || !state) return <Center>{t('cargandoSala')}</Center>
 
   const ranking = individualRanking(players, scores)
   const teamRank = teamMode ? teamRanking(teams, players, scores) : null
 
   return (
+    <ProveedorIdioma value={idioma}>
     <div className="min-h-screen flex flex-col">
       <header className="flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 bg-white border-b border-slate-200">
         <Logo className="text-2xl" />
-        <span className="text-slate-500">PIN <b className="text-slate-900 tracking-widest">{pin}</b></span>
-        <span className="text-slate-500">{activeIds.length} conectados</span>
+        <span className="text-slate-500">{t('pin')} <b className="text-slate-900 tracking-widest">{pin}</b></span>
+        <span className="text-slate-500">{t('conectados', activeIds.length)}</span>
         {inGame && (state.practice
-          ? <span className="rounded-full bg-violet-100 text-violet-800 text-xs font-bold px-3 py-1">PRÁCTICA · no suma puntos</span>
-          : <span className="text-slate-500">Pregunta {state.qIndex + 1} / {state.total}</span>)}
+          ? <span className="rounded-full bg-violet-100 text-violet-800 text-xs font-bold px-3 py-1">{t('practicaNoSuma')}</span>
+          : <span className="text-slate-500">{t('preguntaDe', state.qIndex + 1, state.total)}</span>)}
         {!isOnline && (
           <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1">
-            MODO LOCAL · solo pestañas de este navegador
+            {t('modoLocal')}
           </span>
         )}
         <SoundControl className="ml-auto" />
         {isOnline && <Account store={store} user={user} />}
-        <Button variant="danger" className="!py-2 text-sm" onClick={closeRoom}>Cerrar sala</Button>
+        <Button variant="danger" className="!py-2 text-sm" onClick={closeRoom}>{t('cerrarSala')}</Button>
       </header>
 
       <main className="flex-1 w-full max-w-6xl mx-auto p-6">
@@ -364,18 +379,18 @@ function HostRoom({ store, pin }) {
             current={set} onSelect={(setId) => store.update(`${base}/meta`, { setId })} onClose={() => setEditing(null)} />
         )}
         {state.phase === 'lobby' && !editing && reportOpen && lastReport && (
-          <ClassReport report={lastReport.report} title={lastReport.title} closeLabel="← Volver al lobby" onClose={() => setReportOpen(false)} />
+          <ClassReport report={lastReport.report} title={lastReport.title} closeLabel={t('volverLobby')} onClose={() => setReportOpen(false)} />
         )}
         {state.phase === 'lobby' && !editing && !(reportOpen && lastReport) && (
-          <Lobby store={store} base={base} pin={pin} meta={meta} players={players} online={online}
+          <Lobby store={store} base={base} pin={pin} meta={meta} teams={teams} players={players} online={online}
             set={set} setReady={setReady} user={user} library={library} customIndex={customIndex}
             onKick={kick} onStart={start} onLastReport={lastReport ? () => setReportOpen(true) : null}
             onEdit={async (id) => {
-              if (!user && !(await signInFriendly(store))) return
+              if (!user && !(await signInFriendly(store, idioma))) return
               setEditing(isCustomId(id) ? { kind: 'custom', id, info: customIndex[id] } : { kind: 'base', id })
             }}
             onCreate={async (info) => {
-              if (!user && !(await signInFriendly(store))) return
+              if (!user && !(await signInFriendly(store, idioma))) return
               setEditing({ kind: 'custom', id: newCustomId(), info, isNew: true })
             }} />
         )}
@@ -383,8 +398,8 @@ function HostRoom({ store, pin }) {
         {(state.phase === 'reading' || state.phase === 'answering') && (
           <section className={`flex flex-col pt-6 ${current?.image ? "gap-5" : "gap-10"}`}>
             <p className="text-center text-lg font-bold uppercase tracking-widest text-slate-500">
-              {state.practice && <span className="block text-violet-600">Practice question</span>}
-              {state.phase === 'reading' ? 'Read the question…' : 'Answer on your phone!'}
+              {state.practice && <span className="block text-violet-600">{t('preguntaPractica')}</span>}
+              {state.phase === 'reading' ? t('leeLaPregunta') : t('respondeCelular')}
             </p>
             {/* Grande mientras leen; al responder se achica para que entren las alternativas. */}
             {current?.image && <QuestionImage src={current.image} className={state.phase === 'reading' ? 'max-h-[42vh]' : 'max-h-[24vh]'} />}
@@ -402,13 +417,13 @@ function HostRoom({ store, pin }) {
                   ? <ChoiceTiles options={state.question.options} />
                   : <BuilderOptions question={state.question} mode={meta.mode} />}
                 <p className="text-center text-2xl text-slate-600">
-                  <b className="text-slate-900 text-4xl tabular-nums">{answeredCount}</b> / {activeIds.length} answered
+                  <b className="text-slate-900 text-4xl tabular-nums">{answeredCount}</b>{t('respondieronDe', activeIds.length)}
                 </p>
               </>
             )}
             <div className="flex justify-center">
               <Button variant="ghost" onClick={state.phase === 'reading' ? startAnswering : () => { getSound().effect('timesUp'); reveal() }}>
-                {state.phase === 'reading' ? 'Saltar lectura' : 'Terminar tiempo'}
+                {state.phase === 'reading' ? t('saltarLectura') : t('terminarTiempo')}
               </Button>
             </div>
           </section>
@@ -421,16 +436,16 @@ function HostRoom({ store, pin }) {
 
         {state.phase === 'leaderboard' && (
           <Leaderboard board={state.board} onNext={next}
-            title={teamMode ? 'Team ranking' : 'Ranking'}
-            footnote={teamMode ? 'Team points = the average of its players' : null}
+            title={teamMode ? t('rankingEquipos') : t('ranking')}
+            footnote={teamMode ? t('notaEquipos') : null}
             rows={teamMode
-              ? teamRank.map((t) => ({ ...t, tint: `${presetOf(t.id).tint} ${presetOf(t.id).border} border-2`, extra: <span className="text-base font-normal text-slate-500">· {t.members.length}</span> }))
+              ? teamRank.map((tm) => ({ ...tm, tint: `${presetOf(tm.id).tint} ${presetOf(tm.id).border} border-2`, extra: <span className="text-base font-normal text-slate-500">· {tm.members.length}</span> }))
               : ranking.map((p) => ({ ...p, extra: <StreakBadge streak={p.streak} className="text-base shrink-0" /> }))} />
         )}
 
         {state.phase === 'end' && reportOpen && (
-          <ClassReport report={buildReport(set.questions, players, scores)} title={activityLabel(set)}
-            closeLabel="🏆 Volver al podio" onClose={() => setReportOpen(false)} />
+          <ClassReport report={buildReport(set.questions, players, scores, (k) => t(`wh_${k}`))} title={activityLabel(set)}
+            closeLabel={t('volverPodio')} onClose={() => setReportOpen(false)} />
         )}
         {state.phase === 'end' && !reportOpen && (
           <Podium ranking={teamRank ?? ranking} mvp={teamMode ? mvpOf(players, scores) : null} stage={stage}
@@ -439,10 +454,12 @@ function HostRoom({ store, pin }) {
       </main>
       {inGame && state.phase !== 'end' && <JoinCorner pin={pin} />}
     </div>
+    </ProveedorIdioma>
   )
 }
 
-function Lobby({ store, base, pin, meta, players, online, set, setReady, user, library, customIndex, onKick, onStart, onEdit, onCreate, onLastReport }) {
+function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, user, library, customIndex, onKick, onStart, onEdit, onCreate, onLastReport }) {
+  const t = useT()
   const joinUrl = `${location.origin}${location.pathname}#/play?pin=${pin}`
   const [qr, setQr] = useState('')
   useEffect(() => {
@@ -465,16 +482,26 @@ function Lobby({ store, base, pin, meta, players, online, set, setReady, user, l
   return (
     <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-6">
       <section className="rounded-3xl bg-white border border-slate-200 p-6 flex flex-col items-center text-center gap-3">
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">Join the game</p>
-        {qr && <img src={qr} alt="Código QR para unirse" className="w-64 h-64" />}
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">{t('unirseJuego')}</p>
+        {qr && <img src={qr} alt={t('qrUnirse')} className="w-64 h-64" />}
         <p className="text-slate-500 break-all text-sm">{joinUrl.replace(/^https?:\/\//, '')}</p>
-        <p className="text-slate-500">Game PIN</p>
+        <p className="text-slate-500">{t('pinJuego')}</p>
         <p className="text-6xl font-black tracking-[.2em] text-slate-900">{pin}</p>
       </section>
 
       <section className="flex flex-col gap-5">
         <div className="rounded-3xl bg-white border border-slate-200 p-5 flex flex-col gap-4">
-          <Field label="Curso">
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-bold text-slate-500">{t('idiomaSala')}</p>
+              <p className="text-xs text-slate-400">{t('idiomaAyuda')}</p>
+            </div>
+            <SelectorIdioma idioma={t.idioma} onCambiar={(lang) => {
+              setMeta({ lang })
+              try { localStorage.setItem(IDIOMA_KEY, lang) } catch { /* modo privado */ }
+            }} />
+          </div>
+          <Field label={t('curso')}>
             <div className="grid grid-cols-[auto_repeat(3,minmax(0,1fr))] gap-2 items-center">
               {LEVELS.map((level) => (
                 <Fragment key={level}>
@@ -489,7 +516,7 @@ function Lobby({ store, base, pin, meta, players, online, set, setReady, user, l
               ))}
             </div>
           </Field>
-          <Field label={`Experiencia de aprendizaje · ${course.book}`}>
+          <Field label={t('experiencia', course.book)}>
             <div className="grid sm:grid-cols-2 gap-2">
               {course.eas.map((e) => (
                 <button key={e.ea} onClick={() => setMeta({ setId: sameTypeIn(e, set.type).id })}
@@ -500,16 +527,16 @@ function Lobby({ store, base, pin, meta, players, online, set, setReady, user, l
               ))}
             </div>
           </Field>
-          <Field label="Actividad">
+          <Field label={t('actividad')}>
             <div className="grid sm:grid-cols-2 gap-2">
               {ea.activities.filter((a) => a.type !== 'grammar-focus').map((a) => (
                 <button key={a.id} onClick={() => setMeta({ setId: a.id })}
                   className={`rounded-xl border-2 p-3 text-left transition ${set.id === a.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
                   <span className="block font-bold">
-                    {a.title} <span className="font-normal text-slate-500">· {count(a)} preguntas</span>
+                    {a.title} <span className="font-normal text-slate-500">· {t('nPreguntas', count(a))}</span>
                   </span>
                   {mine(a) && <MineBadge />}
-                  <span className="block text-xs text-slate-500">{ACTIVITY_TYPES[a.type].description}</span>
+                  <span className="block text-xs text-slate-500">{t(`desc_${a.type.replace(/-/g, '_')}`)}</span>
                 </button>
               ))}
             </div>
@@ -518,7 +545,7 @@ function Lobby({ store, base, pin, meta, players, online, set, setReady, user, l
               <div className={`mt-2 rounded-xl border-2 p-3 transition ${set.type === 'grammar-focus' ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200'}`}>
                 <p className="font-bold">
                   {ACTIVITY_TYPES['grammar-focus'].name}
-                  <span className="font-normal text-slate-500"> · un contenido, {focusList[0].questions.length} preguntas</span>
+                  <span className="font-normal text-slate-500">{t('unContenido', focusList[0].questions.length)}</span>
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {focusList.map((a) => (
@@ -537,47 +564,47 @@ function Lobby({ store, base, pin, meta, players, online, set, setReady, user, l
               onCreate={(mechanic) => onCreate({ mechanic, course: course.id, ea: eaIndex, title: '' })} />
             <button onClick={() => onEdit(set.id)}
               className="mt-2 text-sm font-bold text-[#0F6FD6] hover:underline">
-              ✏️ Editar “{set.topic ?? set.title}”{mine(set) ? ' (tu versión)' : ''}
+              {t('editarActividad', set.topic ?? set.title, mine(set))}
             </button>
           </Field>
           {set.practice && (
-            <Field label="Pregunta de práctica al inicio (no suma puntos)">
+            <Field label={t('preguntaPracticaInicio')}>
               <Segmented value={meta.practice !== false} onChange={(practice) => setMeta({ practice })}
-                options={[[true, 'Sí'], [false, 'No']]} />
+                options={[[true, t('si')], [false, t('no')]]} />
             </Field>
           )}
           {(set.type === 'answer-builder' || set.mechanic === 'builder') && (
-            <Field label="Sujeto y verbo">
+            <Field label={t('sujetoYVerbo')}>
               <Segmented value={meta.mode} onChange={(mode) => setMeta({ mode })}
-                options={[['select', 'Elegir de una lista'], ['write', 'Escribirlos']]} />
+                options={[['select', t('elegirLista')], ['write', t('escribirlos')]]} />
             </Field>
           )}
-          <Field label="Modo de juego">
+          <Field label={t('modoJuego')}>
             <Segmented value={teamMode ? 'teams' : 'solo'} onChange={setTeamMode}
-              options={[['solo', 'Individual'], ['teams', 'Equipos']]} />
+              options={[['solo', t('individual')], ['teams', t('equipos')]]} />
           </Field>
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Tiempo de lectura">
+            <Field label={t('tiempoLectura')}>
               <Segmented value={meta.readSec} onChange={(readSec) => setMeta({ readSec })}
                 options={[[5, '5 s'], [8, '8 s'], [12, '12 s']]} />
             </Field>
-            <Field label="Tiempo para responder">
+            <Field label={t('tiempoResponder')}>
               <Segmented value={meta.answerSec} onChange={(answerSec) => setMeta({ answerSec })}
                 options={[[20, '20 s'], [30, '30 s'], [45, '45 s'], [60, '60 s']]} />
             </Field>
           </div>
         </div>
 
-        {teamMode && <TeamsPanel store={store} base={base} meta={meta} players={players} online={online} onKick={onKick} />}
+        {teamMode && <TeamsPanel store={store} base={base} meta={meta} teams={teams} players={players} online={online} onKick={onKick} />}
         <div className={`rounded-3xl bg-white border border-slate-200 p-5 flex-1 ${teamMode ? 'hidden' : ''}`}>
-          <p className="font-bold mb-3">Alumnos ({list.length})</p>
-          {list.length === 0 && <p className="text-slate-400">Esperando que se unan…</p>}
+          <p className="font-bold mb-3">{t('alumnosN', list.length)}</p>
+          {list.length === 0 && <p className="text-slate-400">{t('esperandoUnan')}</p>}
           <ul className="flex flex-wrap gap-2">
             {list.map(([id, p]) => (
               <li key={id}
                 className={`group flex items-center gap-1 rounded-full pl-3 pr-1 py-1 font-bold border ${online[id] === false ? 'text-slate-400 border-dashed border-slate-300' : 'bg-slate-100 border-slate-200'}`}>
                 {p.name}
-                <button onClick={() => onKick(id)} title="Expulsar"
+                <button onClick={() => onKick(id)} title={t('expulsar')}
                   className="w-6 h-6 rounded-full text-slate-400 hover:bg-rose-100 hover:text-rose-700">×</button>
               </li>
             ))}
@@ -586,16 +613,16 @@ function Lobby({ store, base, pin, meta, players, online, set, setReady, user, l
 
         {!setReady && (
           <p className="text-center text-sm font-bold text-amber-700">
-            {user ? 'Cargando tu actividad…' : 'Inicia sesión para usar tu actividad, o elige otra.'}
+            {user ? t('cargandoActividad') : t('iniciaSesionActividad')}
           </p>
         )}
         {onLastReport && (
           <button onClick={onLastReport} className="self-center text-sm font-bold text-[#0F6FD6] hover:underline">
-            📊 Ver resumen del último juego
+            {t('verUltimoResumen')}
           </button>
         )}
         <Button className="text-xl py-4" disabled={list.length === 0 || !setReady} onClick={onStart}>
-          Comenzar ▶
+          {t('comenzar')}
         </Button>
       </section>
     </div>
@@ -604,8 +631,8 @@ function Lobby({ store, base, pin, meta, players, online, set, setReady, user, l
 
 /* Armado de equipos en el lobby: al azar (el profesor reparte) o que elijan en
    el celular. Todo queda editable: nombres, cantidad y quién va dónde. */
-function TeamsPanel({ store, base, meta, players, online, onKick }) {
-  const teams = meta.teams || {}
+function TeamsPanel({ store, base, meta, teams, players, online, onKick }) {
+  const t = useT()
   const ids = teamIdsOf(teams)
   const pick = meta.teamPick || 'random'
   const everyone = Object.keys(players).sort((a, b) => (players[a].joinedAt || 0) - (players[b].joinedAt || 0))
@@ -620,7 +647,7 @@ function TeamsPanel({ store, base, meta, players, online, onKick }) {
   }
   const shuffle = () => {
     const assigned = shuffleIntoTeams(everyone, ids)
-    store.update(base, Object.fromEntries(Object.entries(assigned).map(([id, t]) => [`players/${id}/team`, t])))
+    store.update(base, Object.fromEntries(Object.entries(assigned).map(([id, tm]) => [`players/${id}/team`, tm])))
   }
   const move = (id, team) => store.update(`${base}/players/${id}`, { team: team || null })
   const rename = (team, name) => {
@@ -633,11 +660,11 @@ function TeamsPanel({ store, base, meta, players, online, onKick }) {
       className={`flex items-center gap-1 rounded-full bg-white border pl-3 pr-1 py-0.5 text-sm font-bold ${online[id] === false ? 'text-slate-400 border-dashed' : 'border-slate-200'}`}>
       <span className="truncate max-w-[9rem]">{players[id].name}</span>
       <select value={teams[players[id].team] ? players[id].team : ''} onChange={(e) => move(id, e.target.value)}
-        title="Mover a otro equipo" className="bg-transparent text-sm cursor-pointer">
+        title={t('moverEquipo')} className="bg-transparent text-sm cursor-pointer">
         <option value="">—</option>
-        {ids.map((t) => <option key={t} value={t}>{teams[t].emoji}</option>)}
+        {ids.map((id) => <option key={id} value={id}>{teams[id].emoji}</option>)}
       </select>
-      <button onClick={() => onKick(id)} title="Expulsar"
+      <button onClick={() => onKick(id)} title={t('expulsar')}
         className="w-5 h-5 rounded-full text-slate-400 hover:bg-rose-100 hover:text-rose-700">×</button>
     </li>
   )
@@ -645,37 +672,35 @@ function TeamsPanel({ store, base, meta, players, online, onKick }) {
   return (
     <div className="rounded-3xl bg-white border border-slate-200 p-5 flex-1 flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <p className="font-bold">Equipos · {everyone.length} alumnos</p>
+        <p className="font-bold">{t('equiposAlumnos', everyone.length)}</p>
         <Segmented value={pick} onChange={(teamPick) => store.update(`${base}/meta`, { teamPick })}
-          options={[['random', 'Al azar'], ['choose', 'Ellos eligen']]} />
+          options={[['random', t('alAzar')], ['choose', t('ellosEligen')]]} />
         <div className="inline-flex items-center rounded-xl bg-slate-100 p-1 gap-1">
           <button onClick={() => setCount(ids.length - 1)} disabled={ids.length <= 2}
             className="w-8 h-8 rounded-lg font-black hover:bg-white disabled:opacity-30">−</button>
-          <span className="px-1 text-sm font-bold tabular-nums">{ids.length} equipos</span>
+          <span className="px-1 text-sm font-bold tabular-nums">{t('nEquipos', ids.length)}</span>
           <button onClick={() => setCount(ids.length + 1)} disabled={ids.length >= MAX_TEAMS}
             className="w-8 h-8 rounded-lg font-black hover:bg-white disabled:opacity-30">+</button>
         </div>
-        <Button variant="ghost" className="!py-2 text-sm" onClick={shuffle} disabled={!everyone.length}>🎲 Repartir al azar</Button>
+        <Button variant="ghost" className="!py-2 text-sm" onClick={shuffle} disabled={!everyone.length}>{t('repartirAzar')}</Button>
       </div>
       <p className="text-sm text-slate-500">
-        {pick === 'choose'
-          ? 'Cada alumno elige su equipo en el celular. '
-          : 'Toca “Repartir al azar” cuando estén todos. '}
-        De {TEAM_MIN} a {TEAM_MAX} por equipo. Puedes mover a cualquiera con su menú, y quien quede sin equipo entra al más pequeño al comenzar.
+        {pick === 'choose' ? t('ayudaElegir') : t('ayudaAzar')}
+        {t('ayudaEquipos', TEAM_MIN, TEAM_MAX)}
       </p>
       <div className="grid sm:grid-cols-2 gap-2">
-        {ids.map((t) => {
-          const members = membersOf(t, players)
+        {ids.map((id) => {
+          const members = membersOf(id, players)
           const off = members.length < TEAM_MIN || members.length > TEAM_MAX
-          const st = presetOf(t)
+          const st = presetOf(id)
           return (
-            <div key={t} className={`rounded-2xl border-2 p-3 ${st.border} ${st.tint}`}>
+            <div key={id} className={`rounded-2xl border-2 p-3 ${st.border} ${st.tint}`}>
               <div className="flex items-center gap-2">
-                <span className="text-2xl">{teams[t].emoji}</span>
-                <input key={teams[t].name} defaultValue={teams[t].name} maxLength={20} aria-label="Nombre del equipo"
-                  onBlur={(e) => rename(t, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                <span className="text-2xl">{teams[id].emoji}</span>
+                <input key={teams[id].name} defaultValue={teams[id].name} maxLength={20} aria-label={t('nombreEquipo')}
+                  onBlur={(e) => rename(id, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                   className="flex-1 min-w-0 bg-transparent font-black outline-none border-b border-transparent focus:border-slate-400" />
-                <span title={`De ${TEAM_MIN} a ${TEAM_MAX} por equipo`}
+                <span title={t('porEquipo', TEAM_MIN, TEAM_MAX)}
                   className={`rounded-full px-2 text-sm font-black tabular-nums ${off ? 'bg-rose-100 text-rose-700' : 'bg-white text-slate-600'}`}>
                   {members.length}
                 </span>
@@ -686,7 +711,7 @@ function TeamsPanel({ store, base, meta, players, online, onKick }) {
         })}
         {unassigned.length > 0 && (
           <div className="rounded-2xl border-2 border-dashed border-slate-300 p-3">
-            <p className="font-black text-slate-500">Sin equipo · {unassigned.length}</p>
+            <p className="font-black text-slate-500">{t('sinEquipo', unassigned.length)}</p>
             <ul className="mt-2 flex flex-wrap gap-1.5">{unassigned.map(member)}</ul>
           </div>
         )}
@@ -697,11 +722,12 @@ function TeamsPanel({ store, base, meta, players, online, onKick }) {
 
 /* Las actividades que el docente creó desde cero, en el curso y EA elegidos. */
 function MyActivities({ user, entries, selected, onSelect, onCreate }) {
+  const t = useT()
   const [choosing, setChoosing] = useState(false)
   return (
     <div className="mt-2 rounded-xl border-2 border-dashed border-slate-300 p-3">
       <p className="font-bold">
-        Mis actividades <span className="font-normal text-slate-500">· creadas por ti, solo tú las ves</span>
+        {t('misActividades')} <span className="font-normal text-slate-500">{t('creadasPorTi')}</span>
       </p>
       {entries.length > 0 && (
         <div className="mt-2 grid sm:grid-cols-2 gap-2">
@@ -710,7 +736,7 @@ function MyActivities({ user, entries, selected, onSelect, onCreate }) {
               className={`rounded-lg border-2 px-3 py-2 text-left transition ${selected === id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
               <span className="block font-bold truncate">{info.title}</span>
               <span className="block text-xs text-slate-500">
-                {info.mechanic === 'choice' ? 'Opción múltiple' : 'Answer Builder'} · {info.count} preguntas
+                {info.mechanic === 'choice' ? t('opcionMultiple') : 'Answer Builder'} · {t('nPreguntas', info.count)}
               </span>
             </button>
           ))}
@@ -718,18 +744,18 @@ function MyActivities({ user, entries, selected, onSelect, onCreate }) {
       )}
       {!choosing ? (
         <button onClick={() => setChoosing(true)} className="mt-2 text-sm font-bold text-[#0F6FD6] hover:underline">
-          + Crear actividad{user ? '' : ' (inicia sesión con Google)'}
+          {t('crearActividad', Boolean(user))}
         </button>
       ) : (
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-bold text-slate-600">¿De qué tipo?</span>
+          <span className="font-bold text-slate-600">{t('deQueTipo')}</span>
           <Button variant="ghost" className="!py-1.5 text-sm" onClick={() => { setChoosing(false); onCreate('choice') }}>
-            Opción múltiple (tipo Kahoot)
+            {t('opcionMultipleKahoot')}
           </Button>
           <Button variant="ghost" className="!py-1.5 text-sm" onClick={() => { setChoosing(false); onCreate('builder') }}>
             Answer Builder
           </Button>
-          <button onClick={() => setChoosing(false)} className="text-slate-500 hover:underline">Cancelar</button>
+          <button onClick={() => setChoosing(false)} className="text-slate-500 hover:underline">{t('cancelar')}</button>
         </div>
       )}
     </div>
@@ -739,20 +765,21 @@ function MyActivities({ user, entries, selected, onSelect, onCreate }) {
 /* Arma el editor según qué se edita: la versión propia de una actividad base,
    o una actividad creada desde cero (nueva o existente). */
 function ActivityEditor({ store, user, editing, library, customIndex, current, onSelect, onClose }) {
+  const t = useT()
   const root = `libraries/${user.uid}`
   if (editing.kind === 'base') {
     const original = getSet(editing.id)
     const edited = library[editing.id]
     return (
-      <Editor key={editing.id} heading="Editando tu versión de"
+      <Editor key={editing.id} heading={t('editandoVersion')}
         title={`${original.courseName} · ${original.ea} · ${original.title}`}
-        subheading={`Los cambios son solo tuyos (${user.name}); los demás docentes siguen viendo la original.`}
+        subheading={t('cambiosSoloTuyos', user.name)}
         mechanic={isChoice(original.questions[0]) ? 'choice' : 'builder'}
         questions={applyLibrary(original, edited).questions}
         onSave={(questions) => store.set(`${libraryPath(user.uid)}/${editing.id}`, { questions, updatedAt: store.stamp() })}
-        discardLabel={edited ? 'Restaurar original' : null}
+        discardLabel={edited ? t('restaurarOriginal') : null}
         onDiscard={async () => {
-          if (!confirm('¿Volver a la versión original? Se perderán tus cambios en esta actividad.')) return false
+          if (!confirm(t('confirmarRestaurar'))) return false
           await store.remove(`${libraryPath(user.uid)}/${editing.id}`)
           return true
         }}
@@ -765,10 +792,10 @@ function ActivityEditor({ store, user, editing, library, customIndex, current, o
   const questions = editing.isNew
     ? [blankQuestion(info.mechanic)]
     : current?.id === editing.id ? current.questions : []
-  if (!questions.length) return <Center>Cargando tu actividad…</Center>
+  if (!questions.length) return <Center>{t('cargandoActividad')}</Center>
   return (
-    <Editor key={editing.id} heading={editing.isNew ? 'Nueva actividad' : 'Editando tu actividad'} titled title={info.title}
-      subheading={`${course?.name} · EA${info.ea + 1} · ${info.mechanic === 'choice' ? 'Opción múltiple' : 'Answer Builder'} · Solo tú la ves y la puedes usar.`}
+    <Editor key={editing.id} heading={editing.isNew ? t('nuevaActividad') : t('editandoActividad')} titled title={info.title}
+      subheading={`${course?.name} · EA${info.ea + 1} · ${info.mechanic === 'choice' ? t('opcionMultiple') : 'Answer Builder'} · ${t('soloTuLaVes')}`}
       mechanic={info.mechanic} questions={questions}
       onSave={async (qs, title) => {
         await store.update(root, {
@@ -777,9 +804,9 @@ function ActivityEditor({ store, user, editing, library, customIndex, current, o
         })
         onSelect(editing.id)
       }}
-      discardLabel={editing.isNew ? null : 'Eliminar actividad'}
+      discardLabel={editing.isNew ? null : t('eliminarActividad')}
       onDiscard={async () => {
-        if (!confirm(`¿Eliminar "${info.title}"? No se puede deshacer.`)) return false
+        if (!confirm(t('confirmarEliminar', info.title))) return false
         onSelect(course.eas[info.ea].activities[0].id)
         await store.update(root, { [`custom/${editing.id}`]: null, [`customQuestions/${editing.id}`]: null })
         return true
@@ -795,6 +822,7 @@ function QuestionImage({ src, className = '' }) {
 /* En pleno juego el QR queda chico en una esquina, por si llega alguien tarde;
    al tocarlo se agranda para escanearlo desde lejos. */
 function JoinCorner({ pin }) {
+  const t = useT()
   const joinUrl = `${location.origin}${location.pathname}#/play?pin=${pin}`
   const [qr, setQr] = useState('')
   const [open, setOpen] = useState(false)
@@ -810,59 +838,61 @@ function JoinCorner({ pin }) {
     return (
       <div onClick={() => setOpen(false)} className="fixed inset-0 z-40 bg-slate-900/70 grid place-items-center p-6 cursor-zoom-out">
         <div className="rounded-3xl bg-white p-8 flex flex-col items-center gap-3 text-center shadow-2xl">
-          <p className="text-slate-500 font-bold uppercase tracking-widest">Join the game</p>
-          <img src={qr} alt="Código QR para unirse" className="w-[min(60vh,80vw)] h-[min(60vh,80vw)]" />
+          <p className="text-slate-500 font-bold uppercase tracking-widest">{t('unirseJuego')}</p>
+          <img src={qr} alt={t('qrUnirse')} className="w-[min(60vh,80vw)] h-[min(60vh,80vw)]" />
           <p className="text-6xl font-black tracking-[.2em]">{pin}</p>
-          <p className="text-slate-500 text-sm">{joinUrl.replace(/^https?:\/\//, '')} · toca para cerrar</p>
+          <p className="text-slate-500 text-sm">{joinUrl.replace(/^https?:\/\//, '')} · {t('tocaCerrar')}</p>
         </div>
       </div>
     )
   }
   return (
-    <button onClick={() => setOpen(true)} title="Agrandar el código para unirse"
+    <button onClick={() => setOpen(true)} title={t('agrandarCodigo')}
       className="fixed bottom-4 right-4 z-30 flex items-center gap-3 rounded-2xl bg-white/95 border border-slate-200 shadow-lg p-2 pr-4 hover:shadow-xl transition">
       <img src={qr} alt="" className="w-20 h-20" />
       <span className="text-left">
-        <span className="block text-xs font-bold uppercase tracking-widest text-slate-500">Join</span>
+        <span className="block text-xs font-bold uppercase tracking-widest text-slate-500">{t('unirseCorto')}</span>
         <span className="block text-xl font-black tracking-widest">{pin}</span>
-        <span className="block text-xs text-[#0F6FD6] font-bold">⤢ Agrandar</span>
+        <span className="block text-xs text-[#0F6FD6] font-bold">{t('agrandar')}</span>
       </span>
     </button>
   )
 }
 
 function MineBadge() {
+  const t = useT()
   return (
     <span className="inline-block mt-1 rounded-md bg-amber-100 text-amber-800 text-[11px] font-bold uppercase tracking-wide px-2 py-0.5">
-      ✏️ Tu versión
+      {t('tuVersion')}
     </span>
   )
 }
 
 /* El inicio de sesión solo hace falta para editar. Los errores de configuración
    de Firebase se traducen a lo que el docente tiene que hacer. */
-async function signInFriendly(store) {
+async function signInFriendly(store, idioma) {
   try {
     return await store.signIn()
   } catch (e) {
     const why = {
       'auth/popup-closed-by-user': null,
       'auth/cancelled-popup-request': null,
-      'auth/popup-blocked': 'El navegador bloqueó la ventana de Google. Permite las ventanas emergentes para este sitio.',
-      'auth/operation-not-allowed': 'Falta activar el inicio de sesión con Google en la consola de Firebase.',
-      'auth/unauthorized-domain': 'Falta autorizar este dominio en la consola de Firebase (Authentication → Settings).',
+      'auth/popup-blocked': 'errPopupBloqueado',
+      'auth/operation-not-allowed': 'errSinGoogle',
+      'auth/unauthorized-domain': 'errDominio',
     }[e.code]
-    if (why !== null) alert(why ?? `No se pudo iniciar sesión: ${e.message}`)
+    if (why !== null) alert(why ? traducir(idioma, why) : traducir(idioma, 'errSesion', e.message))
     return null
   }
 }
 
 function Account({ store, user }) {
+  const t = useT()
   if (user === undefined) return null
   if (!user) {
     return (
-      <Button variant="ghost" className="!py-2 text-sm" onClick={() => signInFriendly(store)}>
-        Iniciar sesión con Google
+      <Button variant="ghost" className="!py-2 text-sm" onClick={() => signInFriendly(store, t.idioma)}>
+        {t('iniciarSesion')}
       </Button>
     )
   }
@@ -870,7 +900,7 @@ function Account({ store, user }) {
     <span className="flex items-center gap-2 text-sm">
       {user.photo && <img src={user.photo} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full" />}
       <span className="font-bold max-w-[10rem] truncate">{user.name}</span>
-      <button onClick={() => store.signOut()} className="text-slate-500 hover:underline">Salir</button>
+      <button onClick={() => store.signOut()} className="text-slate-500 hover:underline">{t('salir')}</button>
     </span>
   )
 }
@@ -893,6 +923,7 @@ function individualRanking(players, scores) {
    arriba se anuncian los adelantamientos y, antes de la última pregunta, el duelo
    por el primer lugar. */
 function Leaderboard({ title, rows, board, footnote, onNext }) {
+  const t = useT()
   const shown = rows.slice(0, BOARD_SIZE)
   const duels = board?.duels ? Object.values(board.duels) : []
   const overtakes = board?.overtakes ? Object.values(board.overtakes) : []
@@ -904,7 +935,7 @@ function Leaderboard({ title, rows, board, footnote, onNext }) {
         <li key={shown[i].id} className={`relative rounded-3xl border-[3px] p-1.5 flex flex-col gap-1.5 ${duel.photo ? 'border-rose-500 bg-rose-50' : 'border-orange-400 bg-orange-50'}`}>
           <BoardRow row={shown[i]} place={i + 1} />
           <span className={`absolute right-36 top-1/2 -translate-y-1/2 z-10 rounded-full px-3 py-1 text-base font-black text-white shadow ${duel.photo ? 'bg-rose-600 animate-pulse' : 'bg-orange-500'}`}>
-            ⚔️ VS · {duel.gap} pts
+            {t('duelo', duel.gap)}
           </span>
           <BoardRow row={shown[i + 1]} place={i + 2} />
         </li>,
@@ -919,16 +950,16 @@ function Leaderboard({ title, rows, board, footnote, onNext }) {
       <h2 className="text-4xl font-black text-center">{title}</h2>
       {board?.finalDuel && (
         <div className="rounded-3xl bg-gradient-to-r from-rose-600 to-orange-500 text-white text-center px-6 py-4 shadow-lg animate-rise">
-          <p className="text-sm font-black uppercase tracking-[.3em]">⚔️ Final duel · last question!</p>
+          <p className="text-sm font-black uppercase tracking-[.3em]">{t('dueloFinal')}</p>
           <p className="text-3xl font-black">{board.finalDuel.upper.name} <span className="opacity-80">vs</span> {board.finalDuel.lower.name}</p>
-          <p className="font-bold">only {board.finalDuel.gap} points apart</p>
+          <p className="font-bold">{t('solo', board.finalDuel.gap)}</p>
         </div>
       )}
       {overtakes.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2">
           {overtakes.map((o) => (
             <span key={o.who.id} className="rounded-full bg-violet-600 text-white font-black px-4 py-1.5 text-lg shadow animate-rise">
-              🔄 {o.who.name} overtook {o.over.name}!
+              {t('adelanto', o.who.name, o.over.name)}
             </span>
           ))}
         </div>
@@ -936,7 +967,7 @@ function Leaderboard({ title, rows, board, footnote, onNext }) {
       <ol className="flex flex-col gap-2">{items}</ol>
       {footnote && <p className="text-center text-slate-500">{footnote}</p>}
       <div className="flex justify-center">
-        <Button onClick={onNext}>Siguiente pregunta →</Button>
+        <Button onClick={onNext}>{t('siguientePregunta')}</Button>
       </div>
     </section>
   )
@@ -957,6 +988,7 @@ function BoardRow({ row, place }) {
 }
 
 function SoundControl({ className = '' }) {
+  const t = useT()
   const sound = getSound()
   const [s, setS] = useState(sound.state)
   useEffect(() => sound.subscribe(setS), [sound])
@@ -965,17 +997,17 @@ function SoundControl({ className = '' }) {
     return (
       <button onClick={sound.unlock}
         className={`rounded-full bg-amber-100 text-amber-900 font-bold text-sm px-4 py-2 animate-pulse ${className}`}>
-        🔈 Activar sonido
+        {t('activarSonido')}
       </button>
     )
   }
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <button onClick={() => sound.setMuted(!s.muted)} title={s.muted ? 'Activar sonido' : 'Silenciar'}
+      <button onClick={() => sound.setMuted(!s.muted)} title={s.muted ? t('activarSonidoCorto') : t('silenciar')}
         className="w-9 h-9 rounded-full hover:bg-slate-100 text-xl">
         {s.muted ? '🔇' : '🔊'}
       </button>
-      <input type="range" min="0" max="1" step="0.05" value={s.volume} aria-label="Volumen"
+      <input type="range" min="0" max="1" step="0.05" value={s.volume} aria-label={t('volumen')}
         disabled={s.muted} onChange={(e) => sound.setVolume(Number(e.target.value))}
         className="w-24 accent-[#0F6FD6] disabled:opacity-40" />
     </div>
@@ -1005,13 +1037,14 @@ function Segmented({ value, onChange, options }) {
 }
 
 function Reveal({ state, isLast, ranking, image, onNext }) {
+  const t = useT()
   if (state.question.kind === 'choice') return <ChoiceReveal state={state} isLast={isLast} ranking={ranking} image={image} onNext={onNext} />
   const { solution, stats } = state
   const pct = (k) => (stats.answered ? Math.round((stats[k] / stats.answered) * 100) : 0)
   const shown = {
     subject: solution.subject.join(' / '),
     verb: solution.verb.join(' / '),
-    wh: WH_TYPES[solution.wh],
+    wh: t(`wh_${solution.wh}`),
   }
   return (
     <section className="flex flex-col gap-8 pt-4">
@@ -1025,25 +1058,25 @@ function Reveal({ state, isLast, ranking, image, onNext }) {
             <div className="h-2 rounded-full bg-white overflow-hidden">
               <div className={`h-full ${ROLES[k].solid}`} style={{ width: `${pct(k)}%` }} />
             </div>
-            <p className="text-sm font-bold text-slate-600">{pct(k)}% correct</p>
+            <p className="text-sm font-bold text-slate-600">{t('pctCorrecto', pct(k))}</p>
           </div>
         ))}
       </div>
       {solution.example && (
         <p className="text-center text-2xl text-slate-600">
-          Possible answer: <i className="text-slate-900">“{solution.example}”</i>
+          {t('respuestaPosible')} <i className="text-slate-900">“{solution.example}”</i>
         </p>
       )}
-      <p className="text-center text-slate-500">{stats.answered} answers</p>
+      <p className="text-center text-slate-500">{t('nRespuestas', stats.answered)}</p>
       {state.practice && <PracticePoints ranking={ranking} />}
       <div className="flex justify-center">
-        <Button onClick={onNext}>{nextLabel(state, isLast)}</Button>
+        <Button onClick={onNext}>{t(nextLabel(state, isLast))}</Button>
       </div>
     </section>
   )
 }
 
-const nextLabel = (state, isLast) => (state.practice ? '¡Ahora sí, a jugar! →' : isLast ? 'Ver podio 🏆' : 'Ver ranking →')
+const nextLabel = (state, isLast) => (state.practice ? 'aJugar' : isLast ? 'verPodio' : 'verRanking')
 
 /* Opción múltiple en el proyector: las alternativas con su color y figura, igual
    que en los celulares. Al revelar se marca la correcta y cuántos eligió cada una. */
@@ -1051,10 +1084,11 @@ const nextLabel = (state, isLast) => (state.practice ? '¡Ahora sí, a jugar! �
    ven los celulares, para que el profesor sepa entre qué están eligiendo. En el
    modo "Escribirlos", sujeto y verbo no tienen opciones: se escriben. */
 function BuilderOptions({ question, mode }) {
+  const t = useT()
   const columns = {
     subject: mode === 'write' ? null : question.subjectOptions,
     verb: mode === 'write' ? null : question.verbOptions,
-    wh: question.whOptions?.map((k) => WH_TYPES[k]),
+    wh: question.whOptions?.map((k) => t(`wh_${k}`)),
   }
   return (
     <div className="grid md:grid-cols-3 gap-3 max-w-5xl w-full mx-auto">
@@ -1069,7 +1103,7 @@ function BuilderOptions({ question, mode }) {
                 ))}
               </div>
             )
-            : <p className="text-lg font-bold text-slate-500">✍️ Students write it</p>}
+            : <p className="text-lg font-bold text-slate-500">{t('alumnosEscriben')}</p>}
         </div>
       ))}
     </div>
@@ -1102,6 +1136,7 @@ function ChoiceTiles({ options, answer, votes }) {
 }
 
 function ChoiceReveal({ state, isLast, ranking, image, onNext }) {
+  const t = useT()
   const { solution, stats } = state
   const pct = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0
   return (
@@ -1110,11 +1145,11 @@ function ChoiceReveal({ state, isLast, ranking, image, onNext }) {
       <Prompt text={state.question.prompt} highlightWh={false} className="text-center text-4xl md:text-5xl" />
       <ChoiceTiles options={state.question.options} answer={solution.answer} votes={stats.votes} />
       <p className="text-center text-2xl text-slate-600">
-        <b className="text-slate-900">{pct}%</b> correct · {stats.answered} answers
+        <b className="text-slate-900">{pct}%</b>{t('correctoRespuestas', stats.answered)}
       </p>
       {state.practice && <PracticePoints ranking={ranking} />}
       <div className="flex justify-center">
-        <Button onClick={onNext}>{nextLabel(state, isLast)}</Button>
+        <Button onClick={onNext}>{t(nextLabel(state, isLast))}</Button>
       </div>
     </section>
   )
@@ -1123,11 +1158,12 @@ function ChoiceReveal({ state, isLast, ranking, image, onNext }) {
 /* Lo que cada uno habría ganado en el simulacro: enseña cómo se puntúa
    (partes correctas × rapidez) sin que cuente para el juego. */
 function PracticePoints({ ranking }) {
+  const t = useT()
   const list = [...ranking].sort((a, b) => b.gain - a.gain)
   return (
     <div className="max-w-2xl w-full mx-auto rounded-3xl border-2 border-dashed border-violet-300 bg-violet-50 p-5">
       <p className="text-center font-bold text-violet-800 mb-3">
-        Practice points — they don’t count. The real game starts at 0!
+        {t('puntosPractica')}
       </p>
       <ol className="flex flex-wrap justify-center gap-2">
         {list.map((p) => (
@@ -1195,6 +1231,7 @@ function CountUp({ to, ms = 1200 }) {
 }
 
 function Podium({ ranking, mvp, stage, onAgain, onReport }) {
+  const t = useT()
   const shown = { 1: stage.first, 2: stage.second, 3: stage.third }
 
   // Solo si el primero aparece ahora (no al recargar la página mucho después).
@@ -1221,7 +1258,7 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
                 distancias sin adelantar quién ganó. El espacio queda reservado. */}
             <span className={`font-bold tabular-nums text-slate-600 ${champion ? 'text-2xl' : 'text-lg'}
               ${stage.rest ? 'animate-rise' : 'invisible'}`}>
-              {stage.rest ? <CountUp to={p.total} /> : 0} pts
+              {stage.rest ? <CountUp to={p.total} /> : 0} {t('ptsCorto')}
             </span>
           </div>
         )}
@@ -1238,7 +1275,7 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
   return (
     <section className="flex flex-col items-center gap-8 pt-2">
       <h2 className="text-4xl font-black">
-        {stage.first ? '🎉 And the winner is… 🎉' : stage.drumroll ? 'And the winner is…' : 'Final results'}
+        {stage.first ? t('yElGanadorFiesta') : stage.drumroll ? t('yElGanador') : t('resultadosFinales')}
       </h2>
       <div className="flex items-end gap-3 min-h-[26rem]">
         {column(2)}
@@ -1260,15 +1297,15 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
         <div className="flex items-center gap-4 rounded-3xl bg-gradient-to-r from-amber-100 to-yellow-50 border-2 border-amber-300 px-6 py-3 animate-rise">
           <span className="text-5xl">⭐</span>
           <div>
-            <p className="text-sm font-black uppercase tracking-widest text-amber-700">MVP · best player</p>
-            <p className="text-3xl font-black">{mvp.name} <span className="text-xl font-bold text-slate-600 tabular-nums">· {mvp.total} pts</span></p>
+            <p className="text-sm font-black uppercase tracking-widest text-amber-700">{t('mvpMejor')}</p>
+            <p className="text-3xl font-black">{mvp.name} <span className="text-xl font-bold text-slate-600 tabular-nums">· {mvp.total} {t('ptsCorto')}</span></p>
           </div>
         </div>
       )}
       {stage.rest && (
         <div className="flex flex-wrap justify-center gap-3 animate-rise">
-          <Button onClick={onReport}>📊 Resumen del curso</Button>
-          <Button variant="ghost" onClick={onAgain}>Jugar otra vez</Button>
+          <Button onClick={onReport}>{t('resumenCurso')}</Button>
+          <Button variant="ghost" onClick={onAgain}>{t('jugarOtraVez')}</Button>
         </div>
       )}
     </section>
