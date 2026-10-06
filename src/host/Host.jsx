@@ -86,7 +86,9 @@ function HostRoom({ store, pin, tema }) {
   const scores = useValue(store, `${base}/scores`) || {}
   const inGame = state?.qIndex != null && state.phase !== 'lobby'
   const answers = useValue(store, inGame ? `${base}/answers/${state.qIndex}` : null) || {}
-  const now = useNow(store)
+  /* Cada 100 ms y no 200: en el podio cada puesto tiene que aparecer junto con el
+     golpe de su fanfarria, y 200 ms de atraso ya se notaban. */
+  const now = useNow(store, 100)
   const fired = useRef('')
   const user = useUser(store)
   /* Biblioteca personal: sus versiones editadas reemplazan a las originales. */
@@ -133,19 +135,25 @@ function HostRoom({ store, pin, tema }) {
   }
   const answeredCount = Object.keys(answers).filter((id) => players[id]).length
 
+  /* La hora de inicio de cada fase la fija el proyector con store.now() (su reloj
+     ya alineado al del servidor), NO con store.stamp(). Con stamp, Firebase
+     entrega primero una estimación y al rato la corrige hacia adelante en lo que
+     tardó la red: el cronómetro saltaba un segundo hacia arriba al empezar, y en
+     el podio los nombres salían tarde respecto de los redobles, que ya se habían
+     programado con la estimación. Con WiFi de colegio el salto se notaba. */
   const goQuestion = (i, round = state.round, extra = {}) =>
     store.update(base, {
       ...extra,
       state: {
         phase: 'reading', round, qIndex: i, total: set.questions.length, practice: i < 0,
-        question: buildPublicQuestion(questionAt(i)), startedAt: store.stamp(),
+        question: buildPublicQuestion(questionAt(i)), startedAt: store.now(),
       },
     })
   const withPractice = meta?.practice !== false && Boolean(set?.practice)
   const start = () => goQuestion(withPractice ? -1 : 0, (state.round || 0) + 1, { answers: null, scores: null, ...fillTeams() })
   /* Tras el simulacro todos vuelven a 0: sus puntos solo se mostraron. */
   const startForReal = () => goQuestion(0, state.round, { answers: null, scores: null })
-  const startAnswering = () => store.update(`${base}/state`, { phase: 'answering', startedAt: store.stamp() })
+  const startAnswering = () => store.update(`${base}/state`, { phase: 'answering', startedAt: store.now() })
   const isLast = !state?.practice && state?.qIndex + 1 >= set?.questions.length
   /* Al abrir el ranking se arma el tablero de duelos (ver game/duels.js) y se
      publica: proyector y celulares muestran los mismos VS. */
@@ -159,7 +167,7 @@ function HostRoom({ store, pin, tema }) {
   /* Con el podio se publican las preguntas con sus soluciones: ya terminó el
      juego, y cada celular arma con ellas el resumen de su alumno. */
   const showPodium = () => store.update(`${base}/state`, {
-    phase: 'end', startedAt: store.stamp(), review: set.questions.map(reviewQuestion),
+    phase: 'end', startedAt: store.now(), review: set.questions.map(reviewQuestion),
   })
   const next = () => (isLast ? showPodium() : goQuestion(state.qIndex + 1))
   const backToLobby = () => {
@@ -316,7 +324,7 @@ function HostRoom({ store, pin, tema }) {
   }, [phaseKey, phaseEffect])
 
   const secondsLeft = state?.phase === 'answering' && meta && typeof state.startedAt === 'number'
-    ? Math.ceil((state.startedAt + meta.answerSec * 1000 - now) / 1000)
+    ? Math.min(meta.answerSec, Math.ceil((state.startedAt + meta.answerSec * 1000 - now) / 1000))
     : null
   const lastTick = useRef(null)
   const countdown = secondsLeft != null && secondsLeft <= 5
@@ -375,6 +383,7 @@ function HostRoom({ store, pin, tema }) {
         {isOnline && <Account store={store} user={user} />}
         <Button variant="danger" className="!py-2 text-sm" onClick={closeRoom}>{t('cerrarSala')}</Button>
       </header>
+      {inGame && state.phase !== 'end' && <div className="relative"><JoinCorner pin={pin} /></div>}
 
       <main className="flex-1 w-full max-w-6xl mx-auto p-6">
         {state.phase === 'lobby' && editing && user && (
@@ -455,7 +464,7 @@ function HostRoom({ store, pin, tema }) {
             onAgain={backToLobby} onReport={() => setReportOpen(true)} />
         )}
       </main>
-      {inGame && state.phase !== 'end' && <JoinCorner pin={pin} />}
+
     </div>
     </ProveedorIdioma>
   )
@@ -823,7 +832,10 @@ function QuestionImage({ src, className = '' }) {
 }
 
 /* En pleno juego el QR queda chico en una esquina, por si llega alguien tarde;
-   al tocarlo se agranda para escanearlo desde lejos. */
+   al tocarlo se agranda para escanearlo desde lejos. Va arriba a la izquierda,
+   justo bajo la cabecera, y angosto: abajo a la derecha tapaba alternativas
+   cuando se proyectaba desde el PC del docente. Cuelga de la cabecera (absolute,
+   no fixed) para quedar siempre bajo ella aunque se parta en dos líneas. */
 function JoinCorner({ pin }) {
   const t = useT()
   const joinUrl = `${location.origin}${location.pathname}#/play?pin=${pin}`
@@ -851,13 +863,10 @@ function JoinCorner({ pin }) {
   }
   return (
     <button onClick={() => setOpen(true)} title={t('agrandarCodigo')}
-      className="fixed bottom-4 right-4 z-30 flex items-center gap-3 rounded-2xl bg-white/95 border border-slate-200 shadow-lg p-2 pr-4 hover:shadow-xl transition">
-      <img src={qr} alt="" className="w-20 h-20" />
-      <span className="text-left">
-        <span className="block text-xs font-bold uppercase tracking-widest text-slate-500">{t('unirseCorto')}</span>
-        <span className="block text-xl font-black tracking-widest">{pin}</span>
-        <span className="block text-xs text-[#0F6FD6] font-bold">{t('agrandar')}</span>
-      </span>
+      className="absolute top-3 left-3 z-30 flex flex-col items-center gap-0.5 rounded-xl bg-white/95 border border-slate-200 shadow-md p-1.5 hover:shadow-lg transition">
+      <img src={qr} alt="" className="w-16 h-16" />
+      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none mt-0.5">{t('unirseCorto')}</span>
+      <span className="text-sm font-black tracking-wider tabular-nums leading-tight">{pin}</span>
     </button>
   )
 }
@@ -1044,6 +1053,7 @@ function Reveal({ state, isLast, ranking, image, onNext }) {
   if (state.question.kind === 'choice') return <ChoiceReveal state={state} isLast={isLast} ranking={ranking} image={image} onNext={onNext} />
   const { solution, stats } = state
   const pct = (k) => (stats.answered ? Math.round((stats[k] / stats.answered) * 100) : 0)
+  const fullPct = stats.answered ? Math.round(((stats.full || 0) / stats.answered) * 100) : 0
   const shown = {
     subject: solution.subject.join(' / '),
     verb: solution.verb.join(' / '),
@@ -1070,7 +1080,12 @@ function Reveal({ state, isLast, ranking, image, onNext }) {
           {t('respuestaPosible')} <i className="text-slate-900">“{solution.example}”</i>
         </p>
       )}
-      <p className="text-center text-slate-500">{t('nRespuestas', stats.answered)}</p>
+      {/* El número que explica la reacción del público (aplausos desde 70 %,
+          asombro bajo 40 %): cuántos armaron la respuesta COMPLETA, las tres
+          partes bien. Sin él, los aplausos sonaban sin que se viera por qué. */}
+      <p className="text-center text-2xl text-slate-600">
+        <b className="text-slate-900 text-4xl font-black tabular-nums">{fullPct}%</b>{t('completoRespuestas', stats.answered)}
+      </p>
       {state.practice && <PracticePoints ranking={ranking} />}
       <div className="flex justify-center">
         <Button onClick={onNext}>{t(nextLabel(state, isLast))}</Button>
@@ -1148,7 +1163,7 @@ function ChoiceReveal({ state, isLast, ranking, image, onNext }) {
       <Prompt text={state.question.prompt} highlightWh={false} className="text-center text-4xl md:text-5xl" />
       <ChoiceTiles options={state.question.options} answer={solution.answer} votes={stats.votes} />
       <p className="text-center text-2xl text-slate-600">
-        <b className="text-slate-900">{pct}%</b>{t('correctoRespuestas', stats.answered)}
+        <b className="text-slate-900 text-4xl font-black tabular-nums">{pct}%</b>{t('correctoRespuestas', stats.answered)}
       </p>
       {state.practice && <PracticePoints ranking={ranking} />}
       <div className="flex justify-center">

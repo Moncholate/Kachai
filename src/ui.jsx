@@ -95,7 +95,10 @@ export const choiceCols = (options) => (options.some((o) => o.length > 22) ? 'gr
 
 export function TimerBar({ start, ms, now, className = '' }) {
   const ready = typeof start === 'number'
-  const left = ready ? Math.max(0, start + ms - now) : ms
+  /* Nunca más que el tiempo total: el reloj de pantalla se refresca cada 200 ms
+     y, recién empezada la fase, puede ir un poco atrás de la hora de inicio.
+     Sin el tope, el número partía en 21 con 20 segundos configurados. */
+  const left = ready ? Math.min(ms, Math.max(0, start + ms - now)) : ms
   const pct = (left / ms) * 100
   const urgent = left < 5000
   return (
