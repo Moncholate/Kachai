@@ -3,6 +3,7 @@ import Host, { IDIOMA_KEY, idiomaGuardado } from './host/Host.jsx'
 import Player from './player/Player.jsx'
 import { Button, Logo } from './ui.jsx'
 import { ProveedorIdioma, SelectorIdioma, idiomaDelNavegador, useT } from './i18n.jsx'
+import { useTema } from './tema.jsx'
 
 /* Ruteo por hash: GitHub Pages solo sirve index.html, así que #/host y
    #/play?pin=123456 nunca dan 404. */
@@ -29,6 +30,7 @@ export default function App() {
 /* La portada la ven estudiantes y docentes: el último idioma que eligió el
    docente en este computador, o el del navegador. */
 function HomeConIdioma() {
+  useTema()
   const [idioma, setIdioma] = useState(() => {
     try { return localStorage.getItem(IDIOMA_KEY) ? idiomaGuardado() : idiomaDelNavegador() } catch { return idiomaDelNavegador() }
   })

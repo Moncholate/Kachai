@@ -20,6 +20,7 @@ import {
 } from '../game/teams.js'
 import confetti from 'canvas-confetti'
 import { IDIOMA_POR_DEFECTO, ProveedorIdioma, SelectorIdioma, nombreEquipo, traducir, useT, valido } from '../i18n.jsx'
+import { BotonTema, useTema } from '../tema.jsx'
 
 /* El navegador del profesor es el "servidor" de la actividad: baraja, lleva el
    cronómetro, corrige y reparte puntos. La base de datos solo transporta. Todo el
@@ -56,6 +57,7 @@ async function openRoom(store) {
 }
 
 export default function Host() {
+  const tema = useTema('kachai-tema-proyector', 'claro')
   const store = useStore()
   const [pin, setPin] = useState(null)
   const [error, setError] = useState(null)
@@ -69,10 +71,10 @@ export default function Host() {
 
   if (error) return <Center>{traducir(idiomaGuardado(), 'noSeCreo', error)}</Center>
   if (!pin) return <Center>{traducir(idiomaGuardado(), 'creandoSala')}</Center>
-  return <HostRoom store={store} pin={pin} />
+  return <HostRoom store={store} pin={pin} tema={tema} />
 }
 
-function HostRoom({ store, pin }) {
+function HostRoom({ store, pin, tema }) {
   const base = `rooms/${pin}`
   const meta = useValue(store, `${base}/meta`)
   /* Todo el proyector, también los controles, va en el idioma de la sala. */
@@ -369,6 +371,7 @@ function HostRoom({ store, pin }) {
           </span>
         )}
         <SoundControl className="ml-auto" />
+        <BotonTema tema={tema} etiqueta={tema.oscuro ? t('usarClaro') : t('usarOscuro')} />
         {isOnline && <Account store={store} user={user} />}
         <Button variant="danger" className="!py-2 text-sm" onClick={closeRoom}>{t('cerrarSala')}</Button>
       </header>
@@ -1208,10 +1211,13 @@ function celebrate() {
   return () => { clearInterval(id); timers.forEach(clearTimeout); confetti.reset() }
 }
 
+/* Oro, plata y bronce se ven igual en los dos temas. Por eso el texto va en hex
+   (amber-900, slate-700, orange-900) y no con la clase: el modo oscuro aclara
+   esas clases, y sobre el metal quedarían ilegibles. */
 const PLACES = {
-  1: { medal: '🥇', pedestal: 'h-56 bg-gradient-to-b from-yellow-300 to-amber-500 text-amber-900', width: 'w-60' },
-  2: { medal: '🥈', pedestal: 'h-40 bg-gradient-to-b from-slate-200 to-slate-400 text-slate-700', width: 'w-44' },
-  3: { medal: '🥉', pedestal: 'h-28 bg-gradient-to-b from-orange-300 to-orange-500 text-orange-900', width: 'w-44' },
+  1: { medal: '🥇', pedestal: 'h-56 bg-gradient-to-b from-yellow-300 to-amber-500 text-[#78350f]', width: 'w-60' },
+  2: { medal: '🥈', pedestal: 'h-40 bg-gradient-to-b from-slate-200 to-slate-400 text-[#334155]', width: 'w-44' },
+  3: { medal: '🥉', pedestal: 'h-28 bg-gradient-to-b from-orange-300 to-orange-500 text-[#7c2d12]', width: 'w-44' },
 }
 
 function CountUp({ to, ms = 1200 }) {

@@ -7,6 +7,7 @@ import { TEAM_MAX, membersOf, mvpOf, presetOf, teamIdsOf, teamRanking } from '..
 import confetti from 'canvas-confetti'
 import { Button, CHOICE_STYLES, Center, ChoiceLetter, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, StreakName, TimerBar, choiceCols } from '../ui.jsx'
 import { ProveedorIdioma, SelectorIdioma, idiomaDelNavegador, nombreEquipo, traducir, useT, valido } from '../i18n.jsx'
+import { useTema } from '../tema.jsx'
 
 /* sessionStorage y no localStorage: cada pestaña es un jugador distinto (útil
    para probar), y recargar la página conserva al mismo jugador. Si el celular
@@ -21,6 +22,7 @@ const randomId = () => Math.random().toString(36).slice(2, 10) + Date.now().toSt
 /* Antes de entrar no se sabe a qué sala va: manda el idioma del navegador (y se
    puede cambiar). Ya dentro, manda el de la sala. */
 export default function Player({ initialPin }) {
+  useTema()
   const store = useStore()
   const [me, setMe] = useState(null)
   const [checking, setChecking] = useState(Boolean(initialPin && saved.get(pidKey(initialPin))))

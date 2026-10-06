@@ -157,6 +157,8 @@ export const TEXTOS = {
   preguntaDe: { es: (i, n) => `Pregunta ${i} / ${n}`, en: (i, n) => `Question ${i} / ${n}` },
   modoLocal: { es: 'MODO LOCAL · solo pestañas de este navegador', en: 'LOCAL MODE · this browser’s tabs only' },
   cerrarSala: { es: 'Cerrar sala', en: 'Close room' },
+  usarClaro: { es: 'Usar modo claro', en: 'Use light mode' },
+  usarOscuro: { es: 'Usar modo oscuro', en: 'Use dark mode' },
   volverLobby: { es: '← Volver al lobby', en: '← Back to the lobby' },
   volverPodio: { es: '🏆 Volver al podio', en: '🏆 Back to the podium' },
   preguntaPractica: { es: 'Pregunta de práctica', en: 'Practice question' },
