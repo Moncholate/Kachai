@@ -187,6 +187,7 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
     body = (
       <div className="flex flex-col gap-6 pt-8">
         {state.practice && <PracticeBadge />}
+        {state.double && <DoubleBadge />}
         {state.question.hasImage && <LookAtScreen />}
         <p className="text-center font-bold uppercase tracking-widest text-slate-500 text-sm">{t('leeAtento')}</p>
         <Prompt text={state.question.prompt} highlightWh={state.question.kind !== 'choice'} className="text-center text-3xl" />
@@ -208,6 +209,7 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
       body = (
         <>
           {state.practice && <PracticeBadge />}
+          {state.double && <DoubleBadge />}
           {state.question.hasImage && <LookAtScreen />}
           {state.question.kind === 'choice'
             ? <ChoiceForm key={`${state.round}-${state.qIndex}`} question={state.question}
@@ -227,6 +229,7 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
         {t('puntosEquipo', myTeam.name, teamRank[myTeamPlace - 1]?.total ?? 0)}
         <span className="block mt-1 text-sm">{t('tuPuntaje', score?.total ?? 0)}</span>
         <DuelNote board={state.board} id={myTeam.id} team />
+        {state.nextDouble && <DoubleBadge text={t('dobleProxima')} />}
       </Message>
     )
   } else if (state.phase === 'leaderboard') {
@@ -234,6 +237,7 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
       <Message emoji="📊" title={score?.rank ? t('vasNumero', score.rank) : t('ranking')}>
         {t('puntos', score?.total ?? 0)}
         <DuelNote board={state.board} id={pid} />
+        {state.nextDouble && <DoubleBadge text={t('dobleProxima')} />}
       </Message>
     )
   } else if (state.phase === 'end') {
@@ -473,6 +477,16 @@ function LookAtScreen() {
   return (
     <p className="self-center mx-auto mb-3 w-fit rounded-full bg-sky-100 text-sky-800 text-sm font-black px-3 py-1">
       {t('miraImagen')}
+    </p>
+  )
+}
+
+/* 2X: la última pregunta vale doble. Se ve desde el ranking de antes. */
+function DoubleBadge({ text }) {
+  const t = useT()
+  return (
+    <p className="self-center mx-auto my-3 w-fit rounded-full bg-amber-400 text-amber-950 text-base font-black px-4 py-1.5">
+      {text ?? t('dobleAviso')}
     </p>
   )
 }

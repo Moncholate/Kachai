@@ -39,4 +39,11 @@ describe('duelos', () => {
   it('el ranking anterior se reconstruye restando lo ganado en la pregunta', () => {
     expect(previousTotals([r('a', 1800, 900), r('b', 1500, 200)]).map((x) => [x.id, x.total])).toEqual([['b', 1300], ['a', 900]])
   })
+
+  it('con 2X el alcance se duplica: aparecen VS que antes no estaban', () => {
+    const ranking = [r('a', 2000), r('b', 1300)]
+    expect(buildBoard(ranking, null, true).finalDuel).toBe(null)
+    expect(buildBoard(ranking, null, true, 1000).finalDuel.gap).toBe(700)
+    expect(buildBoard(ranking, null, true, 1000).personal.b).toEqual({ rival: 'A', gap: 700, ahead: true })
+  })
 })

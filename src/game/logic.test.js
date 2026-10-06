@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPublicQuestion, checkAnswer, historyEntry, historyKey, isChoice, nextStreak, normalize, reviewQuestion, scoreFor, solutionOf, splitWh, subjectAccept, UNISEX_NAMES, WH_TYPES } from './logic.js'
+import { buildPublicQuestion, playOrder, playedQuestions, checkAnswer, historyEntry, historyKey, isChoice, nextStreak, normalize, reviewQuestion, scoreFor, solutionOf, splitWh, subjectAccept, UNISEX_NAMES, WH_TYPES } from './logic.js'
 import { ACTIVITY_TYPES, COURSES, SETS, getSet, sameTypeIn } from './sets.js'
 
 const q = { prompt: 'Where did María work yesterday?', wh: 'place', example: 'She worked at the hospital.',
@@ -227,5 +227,20 @@ describe('nombres unisex', () => {
   })
   it('un sujeto plural con un nombre unisex no gana pronombres', () => {
     expect(subjectAccept(q(['Sam and Ana', 'They']))).toEqual(['Sam and Ana', 'They'])
+  })
+})
+
+describe('mezclar preguntas', () => {
+  it('sin mezclar no hay orden; mezcladas, cada pregunta sale una vez', () => {
+    expect(playOrder(10, false)).toBe(null)
+    const order = playOrder(10, true)
+    expect([...order].sort((a, b) => a - b)).toEqual([...Array(10).keys()])
+  })
+  it('las preguntas se juegan en el orden sorteado; un orden que no calza se ignora', () => {
+    const qs = ['a', 'b', 'c']
+    expect(playedQuestions(qs, [2, 0, 1])).toEqual(['c', 'a', 'b'])
+    expect(playedQuestions(qs, { 0: 1, 1: 2, 2: 0 })).toEqual(['b', 'c', 'a']) // Firebase puede devolver objeto
+    expect(playedQuestions(qs, null)).toBe(qs)
+    expect(playedQuestions(qs, [1, 0])).toBe(qs) // la actividad cambió de largo
   })
 })

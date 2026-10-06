@@ -62,6 +62,26 @@ export function shuffle(list, rand = Math.random) {
   return a
 }
 
+/* Orden de las preguntas del juego. Sin mezclar: null (el de la actividad).
+   Mezcladas: los índices barajados, que el proyector sortea una vez al empezar
+   y guarda en state.order, así recargar retoma el mismo orden. */
+export function playOrder(count, mixed, rand = Math.random) {
+  if (!mixed) return null
+  return shuffle([...Array(count).keys()], rand)
+}
+
+/* Las preguntas en el orden en que se juegan. El historial de cada alumno, su
+   resumen y el reporte van por posición: "Q3" es la tercera que se jugó. */
+export function playedQuestions(questions, order) {
+  const list = Array.isArray(order) ? order : order && typeof order === 'object' ? Object.values(order) : null
+  if (!list || list.length !== questions.length) return questions
+  return list.map((i) => questions[i])
+}
+
+/* 2X: el profesor puede hacer que la última pregunta valga el doble. Se activa
+   en el ranking de antes, para que todos lo sepan antes de leerla. */
+export const DOUBLE = 2
+
 /* Dos mecánicas, reconocibles por la forma de la pregunta:
      armar            { subject, verb, wh }: sujeto + verbo + tipo de dato (Answer Builder)
      opción múltiple  { options, answer }: 1 entre 3–4 alternativas (Exam Practice, Grammar Mix) */

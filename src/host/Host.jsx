@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
 import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } from '../game/sets.js'
-import { STREAK_MIN, buildPublicQuestion, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
+import { DOUBLE, STREAK_MIN, buildPublicQuestion, playOrder, playedQuestions, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, CHOICE_STYLES, Center, ChoiceLetter, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, StreakName, TimerBar, choiceCols } from '../ui.jsx'
 import { answeringTrack, getSound } from './sound.js'
 import Editor, { blankQuestion } from './Editor.jsx'
@@ -13,7 +13,7 @@ import {
   applyLibrary, customIndexPath, customQuestionsPath, customSet, isCustomId, libraryPath, newCustomId,
 } from '../game/library.js'
 import { PODIUM_SOUNDS, podiumStage } from '../game/podium.js'
-import { BOARD_SIZE, buildBoard, previousTotals } from '../game/duels.js'
+import { BOARD_SIZE, DUEL_GAP, buildBoard, previousTotals } from '../game/duels.js'
 import {
   MAX_TEAMS, TEAM_MAX, TEAM_MIN, makeTeams, membersOf, mvpOf, presetOf, shuffleIntoTeams, smallestTeam,
   suggestTeamCount, teamIdsOf, teamRanking,
@@ -39,6 +39,10 @@ export const idiomaGuardado = () => {
   try { return valido(localStorage.getItem(IDIOMA_KEY) || IDIOMA_POR_DEFECTO) } catch { return IDIOMA_POR_DEFECTO }
 }
 
+/* "Mezclar preguntas" también se recuerda en este navegador. */
+const MEZCLAR_KEY = 'kachai-mezclar'
+const mezclarGuardado = () => { try { return localStorage.getItem(MEZCLAR_KEY) === '1' } catch { return false } }
+
 /* Margen tras el cero para que alcance a llegar una respuesta enviada en el último segundo. */
 const GRACE_MS = 800
 
@@ -49,7 +53,7 @@ async function openRoom(store) {
   do pin = String(100000 + Math.floor(Math.random() * 900000))
   while (await store.get(`rooms/${pin}/meta`))
   await store.update(`rooms/${pin}`, {
-    meta: { createdAt: store.stamp(), setId: SETS[0].id, mode: 'select', readSec: 8, answerSec: 30, lang: idiomaGuardado() },
+    meta: { createdAt: store.stamp(), setId: SETS[0].id, mode: 'select', readSec: 8, answerSec: 30, lang: idiomaGuardado(), shuffle: mezclarGuardado() },
     state: { phase: 'lobby', round: 0 },
   })
   savedPin.set(pin)
@@ -111,7 +115,10 @@ function HostRoom({ store, pin, tema }) {
   const setReady = !customId || customReady
   /* La pregunta de práctica va con qIndex -1: así sus respuestas quedan aparte y
      "Pregunta N / total" sigue contando solo las reales. */
-  const questionAt = (i) => (i < 0 ? set.practice : set.questions[i])
+  /* Con "Mezclar preguntas", el orden sorteado al empezar (state.order). La
+     práctica no entra: va siempre primero. */
+  const played = set ? playedQuestions(set.questions, state?.order) : []
+  const questionAt = (i) => (i < 0 ? set.practice : played[i])
   const current = set && inGame ? questionAt(state.qIndex) : null
   const activeIds = Object.keys(players).filter((id) => online[id] !== false)
   const teamMode = meta?.teamMode === 'teams'
@@ -141,37 +148,51 @@ function HostRoom({ store, pin, tema }) {
      tardó la red: el cronómetro saltaba un segundo hacia arriba al empezar, y en
      el podio los nombres salían tarde respecto de los redobles, que ya se habían
      programado con la estimación. Con WiFi de colegio el salto se notaba. */
-  const goQuestion = (i, round = state.round, extra = {}) =>
-    store.update(base, {
+  const goQuestion = (i, round = state.round, extra = {}, order = state.order ?? null, double = false) => {
+    const q = i < 0 ? set.practice : playedQuestions(set.questions, order)[i]
+    return store.update(base, {
       ...extra,
       state: {
-        phase: 'reading', round, qIndex: i, total: set.questions.length, practice: i < 0,
-        question: buildPublicQuestion(questionAt(i)), startedAt: store.now(),
+        phase: 'reading', round, qIndex: i, total: set.questions.length, practice: i < 0, order, double,
+        question: buildPublicQuestion(q), startedAt: store.now(),
       },
     })
+  }
   const withPractice = meta?.practice !== false && Boolean(set?.practice)
-  const start = () => goQuestion(withPractice ? -1 : 0, (state.round || 0) + 1, { answers: null, scores: null, ...fillTeams() })
+  const start = () => goQuestion(withPractice ? -1 : 0, (state.round || 0) + 1, { answers: null, scores: null, ...fillTeams() },
+    playOrder(set.questions.length, meta.shuffle === true))
   /* Tras el simulacro todos vuelven a 0: sus puntos solo se mostraron. */
   const startForReal = () => goQuestion(0, state.round, { answers: null, scores: null })
   const startAnswering = () => store.update(`${base}/state`, { phase: 'answering', startedAt: store.now() })
   const isLast = !state?.practice && state?.qIndex + 1 >= set?.questions.length
+  const beforeLast = !state?.practice && state?.qIndex + 2 === set?.questions.length
   /* Al abrir el ranking se arma el tablero de duelos (ver game/duels.js) y se
      publica: proyector y celulares muestran los mismos VS. */
+  const rankingNow = () => (teamMode ? teamRanking(teams, players, scores) : individualRanking(players, scores))
   const showRanking = () => {
-    const now = teamMode ? teamRanking(teams, players, scores) : individualRanking(players, scores)
-    const beforeLast = state.qIndex + 2 === set.questions.length
-    store.update(`${base}/state`, { phase: 'leaderboard', board: buildBoard(now, previousTotals(now), beforeLast) })
+    const now = rankingNow()
+    store.update(`${base}/state`, { phase: 'leaderboard', nextDouble: false, board: buildBoard(now, previousTotals(now), beforeLast) })
+  }
+  /* 2X: se activa en el ranking antes de la última pregunta. El tablero se
+     vuelve a armar con el doble de alcance: más puestos quedan "a tiro". */
+  const toggleDouble = () => {
+    const on = !state.nextDouble
+    const now = rankingNow()
+    if (on) getSound().effect('streak')
+    store.update(`${base}/state`, {
+      nextDouble: on, board: buildBoard(now, previousTotals(now), true, on ? DUEL_GAP * DOUBLE : DUEL_GAP),
+    })
   }
   /* Tras la última pregunta no hay ranking: se salta directo al podio, que se
      revela por partes (ver game/podium.js) para mantener el suspenso. */
   /* Con el podio se publican las preguntas con sus soluciones: ya terminó el
      juego, y cada celular arma con ellas el resumen de su alumno. */
   const showPodium = () => store.update(`${base}/state`, {
-    phase: 'end', startedAt: store.now(), review: set.questions.map(reviewQuestion),
+    phase: 'end', startedAt: store.now(), review: played.map(reviewQuestion),
   })
-  const next = () => (isLast ? showPodium() : goQuestion(state.qIndex + 1))
+  const next = () => (isLast ? showPodium() : goQuestion(state.qIndex + 1, state.round, {}, state.order ?? null, Boolean(beforeLast && state.nextDouble)))
   const backToLobby = () => {
-    if (set) setLastReport({ report: buildReport(set.questions, players, scores, (k) => t(`wh_${k}`)), title: activityLabel(set) })
+    if (set) setLastReport({ report: buildReport(played, players, scores, (k) => t(`wh_${k}`)), title: activityLabel(set) })
     setReportOpen(false)
     return store.update(base, { answers: null, scores: null, state: { phase: 'lobby', round: state.round || 0 } })
   }
@@ -203,7 +224,7 @@ function HostRoom({ store, pin, tema }) {
         const elapsed = a.at - state.startedAt
         if (elapsed <= answerMs + GRACE_MS) {
           parts = checkAnswer(q, a)
-          gain = scoreFor(parts, elapsed, answerMs)
+          gain = scoreFor(parts, elapsed, answerMs) * (state.double ? DOUBLE : 1)
         }
         stats.answered++
         if (choice) {
@@ -373,6 +394,7 @@ function HostRoom({ store, pin, tema }) {
         {inGame && (state.practice
           ? <span className="rounded-full bg-violet-100 text-violet-800 text-xs font-bold px-3 py-1">{t('practicaNoSuma')}</span>
           : <span className="text-slate-500">{t('preguntaDe', state.qIndex + 1, state.total)}</span>)}
+        {inGame && state.double && <span className="rounded-full bg-amber-400 text-amber-950 text-xs font-black px-3 py-1">{t('dobleCorto')}</span>}
         {!isOnline && (
           <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1">
             {t('modoLocal')}
@@ -411,6 +433,7 @@ function HostRoom({ store, pin, tema }) {
           <section className={`flex flex-col pt-6 ${current?.image ? "gap-5" : "gap-10"}`}>
             <p className="text-center text-lg font-bold uppercase tracking-widest text-slate-500">
               {state.practice && <span className="block text-violet-600">{t('preguntaPractica')}</span>}
+              {state.double && <DoubleBanner />}
               {state.phase === 'reading' ? t('leeLaPregunta') : t('respondeCelular')}
             </p>
             {/* Grande mientras leen; al responder se achica para que entren las alternativas. */}
@@ -448,6 +471,7 @@ function HostRoom({ store, pin, tema }) {
 
         {state.phase === 'leaderboard' && (
           <Leaderboard board={state.board} onNext={next}
+            double={beforeLast ? { on: Boolean(state.nextDouble), onToggle: toggleDouble } : null}
             title={teamMode ? t('rankingEquipos') : t('ranking')}
             footnote={teamMode ? t('notaEquipos') : null}
             rows={teamMode
@@ -456,7 +480,7 @@ function HostRoom({ store, pin, tema }) {
         )}
 
         {state.phase === 'end' && reportOpen && (
-          <ClassReport report={buildReport(set.questions, players, scores, (k) => t(`wh_${k}`))} title={activityLabel(set)}
+          <ClassReport report={buildReport(played, players, scores, (k) => t(`wh_${k}`))} title={activityLabel(set)}
             closeLabel={t('volverPodio')} onClose={() => setReportOpen(false)} />
         )}
         {state.phase === 'end' && !reportOpen && (
@@ -591,6 +615,12 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
                 options={[['select', t('elegirLista')], ['write', t('escribirlos')]]} />
             </Field>
           )}
+          <Field label={t('ordenPreguntas')}>
+            <Segmented value={meta.shuffle === true} onChange={(shuffle) => {
+              setMeta({ shuffle })
+              try { localStorage.setItem(MEZCLAR_KEY, shuffle ? '1' : '0') } catch { /* modo privado */ }
+            }} options={[[false, t('enOrden')], [true, t('mezcladas')]]} />
+          </Field>
           <Field label={t('modoJuego')}>
             <Segmented value={teamMode ? 'teams' : 'solo'} onChange={setTeamMode}
               options={[['solo', t('individual')], ['teams', t('equipos')]]} />
@@ -934,7 +964,7 @@ function individualRanking(players, scores) {
 /* Ranking con duelos: los pares a tiro de una pregunta van enmarcados con su VS,
    arriba se anuncian los adelantamientos y, antes de la última pregunta, el duelo
    por el primer lugar. */
-function Leaderboard({ title, rows, board, footnote, onNext }) {
+function Leaderboard({ title, rows, board, footnote, double, onNext }) {
   const t = useT()
   const shown = rows.slice(0, BOARD_SIZE)
   const duels = board?.duels ? Object.values(board.duels) : []
@@ -978,10 +1008,27 @@ function Leaderboard({ title, rows, board, footnote, onNext }) {
       )}
       <ol className="flex flex-col gap-2">{items}</ol>
       {footnote && <p className="text-center text-slate-500">{footnote}</p>}
-      <div className="flex justify-center">
+      {double?.on && <DoubleBanner text={t('dobleProxima')} />}
+      <div className="flex flex-wrap justify-center gap-3">
+        {double && (
+          <Button variant="ghost" onClick={double.onToggle} aria-pressed={double.on}
+            className={double.on ? '!bg-amber-400 !border-amber-400 !text-amber-950' : ''}>
+            {double.on ? t('dobleQuitar') : t('dobleActivar')}
+          </Button>
+        )}
         <Button onClick={onNext}>{t('siguientePregunta')}</Button>
       </div>
     </section>
+  )
+}
+
+/* Aviso del 2X en el proyector: antes de la última pregunta y mientras se juega. */
+function DoubleBanner({ text }) {
+  const t = useT()
+  return (
+    <span className="block mx-auto my-2 w-fit rounded-2xl bg-amber-400 text-amber-950 px-6 py-2 text-3xl font-black normal-case tracking-normal shadow-lg animate-rise">
+      {text ?? t('dobleAviso')}
+    </span>
   )
 }
 
