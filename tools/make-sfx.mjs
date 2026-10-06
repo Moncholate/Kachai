@@ -23,7 +23,7 @@ export const SFX = {
   'crowd-yes': ['Positive crowd reaction.wav', 1950, 300, -18],
   'crowd-no': ['Negative crowd reaction.wav', 1850, 300, -18],
   applause: ['Champion round of applause.wav', 4000, 700, -19],
-  join: ['User connected.wav', 900, 150, -21],
+  join: ['User connected.wav', 900, 150, -16],
   'times-up': ["Time's up.wav", 750, 60, -15],
   streak: ['Streak.wav', 900, 120, -16],
 }

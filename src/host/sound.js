@@ -41,6 +41,10 @@ const EFFECTS = {
 }
 const MUSIC_LEVEL = 0.8 // deja aire a los efectos por encima de la música
 const DUCKED_LEVEL = 0.25 // últimos segundos: la música se aparta para que se oigan los tics
+/* Alguien entra: la música (la del lobby, casi siempre) baja ~8 dB mientras suena el aviso (0,9 s)
+   y vuelve sola. Si entran varios seguidos, se queda abajo hasta el último. */
+const JOIN_DUCK = 0.4
+const JOIN_HOLD = 0.75
 const FADE_IN = 0.4
 const FADE_OUT = 0.6
 
@@ -59,7 +63,9 @@ function createSoundEngine() {
   master.connect(ctx.destination)
   const music = ctx.createGain()
   music.gain.value = MUSIC_LEVEL
-  music.connect(master)
+  // Nodo aparte para el aviso de entrada: así no pisa al duck de la cuenta regresiva.
+  const joinDuck = ctx.createGain()
+  music.connect(joinDuck).connect(master)
 
   let volume = prefs.get('volume', 0.7)
   let muted = prefs.get('muted', false)
@@ -173,7 +179,17 @@ function createSoundEngine() {
       music.gain.setTargetAtTime(on ? DUCKED_LEVEL : MUSIC_LEVEL, ctx.currentTime, 0.15)
     },
     /* Alguien entró a la sala. */
-    join() { effect('join') },
+    join() {
+      if (ctx.state !== 'running') return
+      const t = ctx.currentTime
+      const g = joinDuck.gain
+      g.cancelScheduledValues(t)
+      g.setValueAtTime(g.value, t)
+      g.linearRampToValueAtTime(JOIN_DUCK, t + 0.04)
+      g.setValueAtTime(JOIN_DUCK, t + JOIN_HOLD)
+      g.linearRampToValueAtTime(1, t + JOIN_HOLD + 0.35)
+      effect('join')
+    },
     setVolume(v) { volume = v; prefs.set('volume', v); applyVolume(); emit() },
     setMuted(m) { muted = m; prefs.set('muted', m); applyVolume(); emit() },
     state,
