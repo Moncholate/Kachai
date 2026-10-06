@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPublicQuestion, checkAnswer, historyEntry, historyKey, isChoice, nextStreak, normalize, reviewQuestion, scoreFor, splitWh, WH_TYPES } from './logic.js'
+import { buildPublicQuestion, checkAnswer, historyEntry, historyKey, isChoice, nextStreak, normalize, reviewQuestion, scoreFor, solutionOf, splitWh, subjectAccept, UNISEX_NAMES, WH_TYPES } from './logic.js'
 import { ACTIVITY_TYPES, COURSES, SETS, getSet, sameTypeIn } from './sets.js'
 
 const q = { prompt: 'Where did María work yesterday?', wh: 'place', example: 'She worked at the hospital.',
@@ -56,6 +56,8 @@ describe('Answer Builder', () => {
           // una trampa nunca puede ser también respuesta válida
           for (const d of item[part].distractors) expect(accept).not.toContain(normalize(d))
         }
+        // nada de nombres unisex: con «Sam» no se sabe si va he o she
+        for (const a of item.subject.accept) expect(UNISEX_NAMES.has(normalize(a))).toBe(false)
         const pub = buildPublicQuestion(item)
         expect(pub.whOptions).toContain(item.wh)
         expect(new Set(pub.whOptions).size).toBe(4)
@@ -199,5 +201,31 @@ describe('sonidos del podio', () => {
     // el 4.º lugar en adelante y los botones, después del campeón
     expect(PODIUM_AT.rest).toBeGreaterThan(PODIUM_AT.first)
     for (const c of PODIUM_SOUNDS) expect(c.at).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('nombres unisex', () => {
+  const q = (accept, distractors = ['Where', 'It']) => ({
+    prompt: 'Where does Sam work?', wh: 'place',
+    subject: { accept, distractors }, verb: { accept: ['works'], distractors: ['work'] },
+  })
+  it('con Sam valen He y She, aunque el docente solo haya escrito uno', () => {
+    const item = q(['Sam', 'He'], ['She', 'Where', 'It'])
+    expect(checkAnswer(item, { subject: 'She', verb: 'works', wh: 'place' })).toEqual([true, true, true])
+    expect(checkAnswer(item, { subject: 'he', verb: 'works', wh: 'place' })).toEqual([true, true, true])
+    expect(checkAnswer(item, { subject: 'It', verb: 'works', wh: 'place' })[0]).toBe(false)
+  })
+  it('la solución proyectada, el resumen del celular y el reporte lo muestran', () => {
+    const item = q(['Alex', 'She'])
+    expect(subjectAccept(item)).toEqual(['Alex', 'She', 'He'])
+    expect(solutionOf(item).subject).toEqual(['Alex', 'She', 'He'])
+    expect(reviewQuestion(item).subject.accept).toEqual(['Alex', 'She', 'He'])
+  })
+  it('un nombre que no es unisex queda como está', () => {
+    expect(subjectAccept(q(['Tom', 'He']))).toEqual(['Tom', 'He'])
+    expect(checkAnswer(q(['Tom', 'He']), { subject: 'She', verb: 'works', wh: 'place' })[0]).toBe(false)
+  })
+  it('un sujeto plural con un nombre unisex no gana pronombres', () => {
+    expect(subjectAccept(q(['Sam and Ana', 'They']))).toEqual(['Sam and Ana', 'They'])
   })
 })

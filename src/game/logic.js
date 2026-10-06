@@ -29,6 +29,30 @@ export function normalize(text) {
 
 const matches = (accepted, given) => accepted.some((a) => normalize(a) === normalize(given))
 
+/* Nombres que en inglés se usan para hombre Y para mujer. Con uno de ellos de
+   sujeto, la pregunta no dice si va "he" o "she": un alumno vio "Sam", pensó en
+   una mujer, eligió "She" y se le marcó mal. Pasa en clases de verdad, así que:
+     · el banco base no los usa (lo vigila logic.test.js);
+     · si aparecen en una actividad propia del docente, valen los dos pronombres.
+   Andrea va porque en italiano es de hombre y en Chile de mujer. */
+export const UNISEX_NAMES = new Set([
+  'sam', 'alex', 'kim', 'chris', 'jordan', 'taylor', 'jamie', 'robin', 'casey', 'morgan',
+  'charlie', 'pat', 'jesse', 'riley', 'drew', 'sasha', 'dani', 'frankie', 'jo', 'lee', 'andrea',
+])
+
+/* Sujetos válidos de una pregunta de Answer Builder, con el pronombre que falta
+   cuando el sujeto es un nombre unisex. Lo usan la corrección, la solución que
+   se proyecta, el resumen del celular y el reporte: todos dicen lo mismo. */
+export function subjectAccept(q) {
+  const accept = q.subject.accept
+  const norm = accept.map(normalize)
+  if (!norm.some((a) => UNISEX_NAMES.has(a))) return accept
+  const extra = []
+  if (norm.includes('he') && !norm.includes('she')) extra.push('She')
+  if (norm.includes('she') && !norm.includes('he')) extra.push('He')
+  return [...accept, ...extra]
+}
+
 export function shuffle(list, rand = Math.random) {
   const a = [...list]
   for (let i = a.length - 1; i > 0; i--) {
@@ -66,14 +90,14 @@ export function buildPublicQuestion(q, rand = Math.random) {
 
 export function solutionOf(q) {
   if (isChoice(q)) return { answer: q.answer }
-  return { subject: q.subject.accept, verb: q.verb.accept, wh: q.wh, example: q.example ?? null }
+  return { subject: subjectAccept(q), verb: q.verb.accept, wh: q.wh, example: q.example ?? null }
 }
 
 /* → partes acertadas como booleanos: [sujeto, verbo, wh] o [alternativa] */
 export function checkAnswer(q, answer) {
   if (isChoice(q)) return [answer?.choice === q.answer]
   return [
-    matches(q.subject.accept, answer?.subject),
+    matches(subjectAccept(q), answer?.subject),
     matches(q.verb.accept, answer?.verb),
     answer?.wh === q.wh,
   ]
@@ -104,6 +128,8 @@ export function historyEntry(q, answer, parts, gain) {
    y sin la imagen, que pesa y no hace falta para repasar. */
 export function reviewQuestion(q) {
   const { image, ...rest } = q
+  // El resumen del celular muestra la solución: también con el pronombre extra.
+  if (!isChoice(q) && q.subject) rest.subject = { ...q.subject, accept: subjectAccept(q) }
   return image ? { ...rest, hasImage: true } : rest
 }
 

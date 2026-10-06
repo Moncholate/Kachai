@@ -2,7 +2,7 @@
    que ya guarda cada puntaje (scores[id].history, ver historyEntry en logic.js):
    por pregunta, lo que respondió cada alumno, qué partes acertó y cuánto ganó. */
 
-import { WH_TYPES, historyKey, isChoice } from './logic.js'
+import { WH_TYPES, historyKey, isChoice, subjectAccept } from './logic.js'
 
 const PART_NAMES = ['subject', 'verb', 'wh']
 const asList = (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : [])
@@ -12,7 +12,7 @@ const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0)
    rótulo en inglés de logic.js. */
 export function solutionText(q, whLabel = (k) => WH_TYPES[k]) {
   if (isChoice(q)) return q.answer
-  return `${q.subject.accept.join(' / ')} · ${q.verb.accept.join(' / ')} · ${whLabel(q.wh)}`
+  return `${subjectAccept(q).join(' / ')} · ${q.verb.accept.join(' / ')} · ${whLabel(q.wh)}`
 }
 
 /* La racha más larga de preguntas enteras bien, recorriendo el historial en orden. */
