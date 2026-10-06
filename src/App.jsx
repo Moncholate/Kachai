@@ -55,7 +55,7 @@ function Home({ onIdioma }) {
           onSubmit={(e) => { e.preventDefault(); location.hash = `#/play?pin=${pin}` }}>
           <input inputMode="numeric" maxLength={6} placeholder={t('pinJuego')} value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-            className="rounded-xl border-2 border-slate-200 px-4 py-3 text-center text-2xl font-black tracking-widest focus:border-[#0F6FD6] outline-none" />
+            className="w-full min-w-0 rounded-xl border-2 border-slate-200 px-4 py-3 text-center text-2xl font-black tracking-widest focus:border-[#0F6FD6] outline-none" />
           <Button disabled={pin.length !== 6} className="text-lg">{t('entrar')}</Button>
         </form>
         <a href="#/host" className="text-slate-500 underline underline-offset-4 hover:text-slate-800">

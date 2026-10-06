@@ -1,0 +1,13 @@
+/* AUTO-GENERATED from design-tokens/tokens.json — do not edit by hand.
+   Change tokens.json and run `npm run sync` in Apps/design-tokens. */
+
+:root{ --focus:#5850ec; --focus-ring:3px; --tap-min:46px; --muted:#565e73; --ink:#161927; }
+:root[data-theme="dark"]{ --focus:#8a83ff; --focus-ring:3px; --tap-min:46px; --muted:#9aa2b6; --ink:#eceff8; }
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible{
+  outline: var(--focus-ring, 3px) solid var(--focus, #5850ec);
+  outline-offset: 2px;
+}
+
+.text-muted{ color: var(--muted) !important; }
+.hover\:text-ink:hover{ color: var(--ink) !important; }

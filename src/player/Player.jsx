@@ -102,12 +102,12 @@ function JoinForm({ store, initialPin, notice, onJoined, onIdioma }) {
         {!initialPin && (
           <input inputMode="numeric" maxLength={6} placeholder={t('pinJuego')} value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-            className="rounded-xl border-2 border-slate-200 px-4 py-3 text-center text-2xl font-black tracking-widest focus:border-[#0F6FD6] outline-none" />
+            className="w-full min-w-0 rounded-xl border-2 border-slate-200 px-4 py-3 text-center text-2xl font-black tracking-widest focus:border-[#0F6FD6] outline-none" />
         )}
         {initialPin && <p className="text-center text-slate-500">{t('pin')} <b className="text-slate-900 tracking-widest">{initialPin}</b></p>}
         <input maxLength={16} placeholder={t('tuNombre')} value={name} autoComplete="off"
           onChange={(e) => setName(e.target.value)}
-          className="rounded-xl border-2 border-slate-200 px-4 py-3 text-center text-xl font-bold focus:border-[#0F6FD6] outline-none" />
+          className="w-full min-w-0 rounded-xl border-2 border-slate-200 px-4 py-3 text-center text-xl font-bold focus:border-[#0F6FD6] outline-none" />
         {error && <p className="text-rose-600 text-sm font-bold text-center">{error}</p>}
         <Button disabled={busy} className="text-lg">{busy ? t('entrando') : t('unirse')}</Button>
         <SelectorIdioma idioma={t.idioma} onCambiar={onIdioma} className="self-center" />

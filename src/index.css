@@ -1,3 +1,11 @@
+/* Base DUA de la suite (anillo de foco, gris apagado legible), generada
+   desde design-tokens: no se edita aquí. */
+@import './dua.generated.css';
+/* Colores de rol como variables (--rol-*), generados desde design-tokens. */
+@import './colores.generated.css';
+
+@font-face{font-family:'Lexend';font-style:normal;font-weight:400 700;font-display:swap;src:url('./fonts/Lexend.woff2') format('woff2');}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,7 +13,8 @@
 html, body {
   background: #f8fafc; /* slate-50 */
   color: #0f172a;      /* slate-900 */
-  font-family: ui-rounded, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* Lexend: la tipografía de interfaz de la suite (design-tokens, foundation). */
+  font-family: 'Lexend', system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -34,101 +43,108 @@ html, body {
 }
 
 /* ── Modo oscuro ───────────────────────────────────────────────────────────
-   Una clase en <html> (ver tema.jsx) y, debajo, la versión oscura de cada
+   `data-theme="dark"` en <html> (ver tema.jsx), como en el resto de la
+   suite, y, debajo, la versión oscura de cada
    color que usa la app. Están TODOS los que aparecen en el código: si se
    agrega un color nuevo a una pantalla, hay que agregarlo aquí también.
    Los sólidos con texto blanco (alternativas A–D, equipos, veredictos) se
    quedan como están: se leen igual sobre fondo oscuro.
 
-   Superficies: página #0f1320, tarjetas #1a1f2e, bordes #2c3346.
-   Texto: principal #e6e9f2, secundario #a3abc0, tenue #7c859c.
-   Mismos valores que Liveboard. */
-html.kc-oscuro, html.kc-oscuro body { background: #0f1320; color: #e6e9f2; color-scheme: dark; }
+   La rampa es la de toda la suite (Grammar HUB, Utility Belt, Grammaster…),
+   de foundation.neutral.dark en design-tokens: página #0c0e15, tarjetas
+   #141826, bordes #2a3042; texto #eceff8, secundario #c7cdda, apagado
+   #9aa2b6. Antes Kachai y Liveboard tenían una rampa propia, y su gris más
+   tenue (#7c859c) quedaba en 4,3:1 sobre las tarjetas, bajo AA. */
+:root[data-theme="dark"], :root[data-theme="dark"] body { background: #0c0e15; color: #eceff8; color-scheme: dark; }
 
-.kc-oscuro .bg-white { background-color: #1a1f2e; }
-.kc-oscuro .bg-white\/95 { background-color: rgba(15, 19, 32, 0.95); }
-.kc-oscuro .bg-slate-50 { background-color: #141826; }
-.kc-oscuro .bg-slate-100 { background-color: #252b3b; }
-.kc-oscuro .bg-slate-200 { background-color: #2c3346; }
-.kc-oscuro .bg-slate-300 { background-color: #3a4256; }
-.kc-oscuro .bg-slate-900 { background-color: #3a4256; }
-.kc-oscuro .hover\:bg-slate-50:hover, .kc-oscuro .hover\:bg-slate-100:hover { background-color: #252b3b; }
-.kc-oscuro .hover\:bg-white:hover { background-color: #3a4256; }
+:root[data-theme="dark"] .bg-white { background-color: #141826; }
+:root[data-theme="dark"] .bg-white\/95 { background-color: rgba(12, 14, 21, 0.95); }
+:root[data-theme="dark"] .bg-slate-50 { background-color: #1a1f2e; }
+:root[data-theme="dark"] .bg-slate-100 { background-color: #222839; }
+:root[data-theme="dark"] .bg-slate-200 { background-color: #2a3042; }
+:root[data-theme="dark"] .bg-slate-300 { background-color: #3a4256; }
+:root[data-theme="dark"] .bg-slate-900 { background-color: #3a4256; }
+:root[data-theme="dark"] .hover\:bg-slate-50:hover, :root[data-theme="dark"] .hover\:bg-slate-100:hover { background-color: #222839; }
+:root[data-theme="dark"] .hover\:bg-white:hover { background-color: #3a4256; }
 
-.kc-oscuro .text-slate-900 { color: #f1f3f9; }
-.kc-oscuro .text-slate-800 { color: #e6e9f2; }
-.kc-oscuro .text-slate-700 { color: #d3d8e5; }
-.kc-oscuro .text-slate-600 { color: #b6bdd0; }
-.kc-oscuro .text-slate-500 { color: #a3abc0; }
-.kc-oscuro .text-slate-400 { color: #7c859c; }
-.kc-oscuro .hover\:text-slate-700:hover, .kc-oscuro .hover\:text-slate-800:hover { color: #f1f3f9; }
+:root[data-theme="dark"] .text-slate-900 { color: #eceff8; }
+:root[data-theme="dark"] .text-slate-800 { color: #eceff8; }
+:root[data-theme="dark"] .text-slate-700 { color: #c7cdda; }
+:root[data-theme="dark"] .text-slate-600 { color: #c7cdda; }
+:root[data-theme="dark"] .text-slate-500 { color: #9aa2b6; }
+:root[data-theme="dark"] .text-slate-400 { color: #9aa2b6; }
+:root[data-theme="dark"] .hover\:text-slate-700:hover, :root[data-theme="dark"] .hover\:text-slate-800:hover { color: #eceff8; }
 
-.kc-oscuro .border-slate-100 { border-color: #252b3b; }
-.kc-oscuro .border-slate-200 { border-color: #2c3346; }
-.kc-oscuro .border-slate-300 { border-color: #3a4256; }
-.kc-oscuro .border-slate-400 { border-color: #4b546b; }
-.kc-oscuro .hover\:border-slate-300:hover, .kc-oscuro .hover\:border-slate-400:hover { border-color: #4b546b; }
-.kc-oscuro .focus\:border-slate-400:focus, .kc-oscuro .focus\:border-slate-500:focus { border-color: #6b7590; }
+:root[data-theme="dark"] .border-slate-100 { border-color: #222839; }
+:root[data-theme="dark"] .border-slate-200 { border-color: #2a3042; }
+:root[data-theme="dark"] .border-slate-300 { border-color: #3a4256; }
+:root[data-theme="dark"] .border-slate-400 { border-color: #4b546b; }
+:root[data-theme="dark"] .hover\:border-slate-300:hover, :root[data-theme="dark"] .hover\:border-slate-400:hover { border-color: #4b546b; }
+:root[data-theme="dark"] .focus\:border-slate-400:focus, :root[data-theme="dark"] .focus\:border-slate-500:focus { border-color: #6b7590; }
 
-/* Acento: el azul del logo se aclara para leerse sobre la página (3,8 → 7,3:1).
-   Los botones rellenos #0F6FD6 se quedan: llevan texto blanco. */
-.kc-oscuro .text-\[\#0F6FD6\] { color: #60a5fa; }
-.kc-oscuro .bg-blue-50 { background-color: #14233d; }
+/* Acento: #0F6FD6 es el `accent.solid` de design-tokens (relleno bajo texto
+   blanco), así que los botones rellenos se quedan igual en los dos temas. Como
+   TEXTO sobre fondo oscuro va el `accent.ink.dark`, #7cb2fb. Antes era #60a5fa,
+   que pasaba el contraste pero es exactamente el azul del SUJETO: en una
+   pregunta de inglés, el enlace y la pieza gramatical se leían igual. */
+:root[data-theme="dark"] .text-\[\#0F6FD6\] { color: #7cb2fb; }
+:root[data-theme="dark"] .bg-blue-50 { background-color: #14233d; }
 
-/* Colores de rol (design-tokens, valores `dark`): wh, sujeto y verbo */
-.kc-oscuro .text-teal-700 { color: #2dd4bf; }
-.kc-oscuro .text-blue-600 { color: #60a5fa; }
-.kc-oscuro .text-red-700 { color: #f87171; }
-.kc-oscuro .bg-teal-50 { background-color: #0f2a28; }
-.kc-oscuro .bg-red-50 { background-color: #2e1618; }
+/* Colores de rol: wh, sujeto y verbo. Por la variable de colores.generated.css
+   y no copiados, así un cambio en tokens.json llega solo. */
+:root[data-theme="dark"] .text-teal-700 { color: var(--rol-wh); }
+:root[data-theme="dark"] .text-blue-600 { color: var(--rol-subject); }
+:root[data-theme="dark"] .text-red-700 { color: var(--rol-verb); }
+:root[data-theme="dark"] .bg-teal-50 { background-color: #0f2a28; }
+:root[data-theme="dark"] .bg-red-50 { background-color: #2e1618; }
 
 /* Avisos, chips y estados: el tinte se oscurece y su texto se aclara juntos */
-.kc-oscuro .bg-amber-50 { background-color: #2e2410; }
-.kc-oscuro .bg-amber-100 { background-color: #3a2d10; }
-.kc-oscuro .border-amber-300 { border-color: #6b5418; }
-.kc-oscuro .text-amber-600, .kc-oscuro .text-amber-700 { color: #fbbf24; }
-.kc-oscuro .text-amber-800, .kc-oscuro .text-amber-900 { color: #f0d9a8; }
-.kc-oscuro .from-amber-100.to-yellow-50 { background-image: linear-gradient(to right, #3a2d10, #2e2410); }
+:root[data-theme="dark"] .bg-amber-50 { background-color: #2e2410; }
+:root[data-theme="dark"] .bg-amber-100 { background-color: #3a2d10; }
+:root[data-theme="dark"] .border-amber-300 { border-color: #6b5418; }
+:root[data-theme="dark"] .text-amber-600, :root[data-theme="dark"] .text-amber-700 { color: #fbbf24; }
+:root[data-theme="dark"] .text-amber-800, :root[data-theme="dark"] .text-amber-900 { color: #f0d9a8; }
+:root[data-theme="dark"] .from-amber-100.to-yellow-50 { background-image: linear-gradient(to right, #3a2d10, #2e2410); }
 
-.kc-oscuro .bg-rose-50, .kc-oscuro .hover\:bg-rose-50:hover { background-color: #3a1720; }
-.kc-oscuro .bg-rose-100, .kc-oscuro .hover\:bg-rose-100:hover { background-color: #4a1d29; }
-.kc-oscuro .border-rose-200 { border-color: #5c2533; }
-.kc-oscuro .border-rose-300 { border-color: #7a2e40; }
-.kc-oscuro .text-rose-600 { color: #fb7185; }
-.kc-oscuro .text-rose-700, .kc-oscuro .hover\:text-rose-700:hover { color: #fda4af; }
+:root[data-theme="dark"] .bg-rose-50, :root[data-theme="dark"] .hover\:bg-rose-50:hover { background-color: #3a1720; }
+:root[data-theme="dark"] .bg-rose-100, :root[data-theme="dark"] .hover\:bg-rose-100:hover { background-color: #4a1d29; }
+:root[data-theme="dark"] .border-rose-200 { border-color: #5c2533; }
+:root[data-theme="dark"] .border-rose-300 { border-color: #7a2e40; }
+:root[data-theme="dark"] .text-rose-600 { color: #fb7185; }
+:root[data-theme="dark"] .text-rose-700, :root[data-theme="dark"] .hover\:text-rose-700:hover { color: #fda4af; }
 
-.kc-oscuro .bg-violet-50 { background-color: #251d42; }
-.kc-oscuro .bg-violet-100 { background-color: #2e2452; }
-.kc-oscuro .border-violet-200, .kc-oscuro .border-violet-300 { border-color: #4c3d80; }
-.kc-oscuro .text-violet-600, .kc-oscuro .text-violet-700, .kc-oscuro .text-violet-800 { color: #c4b5fd; }
+:root[data-theme="dark"] .bg-violet-50 { background-color: #251d42; }
+:root[data-theme="dark"] .bg-violet-100 { background-color: #2e2452; }
+:root[data-theme="dark"] .border-violet-200, :root[data-theme="dark"] .border-violet-300 { border-color: #4c3d80; }
+:root[data-theme="dark"] .text-violet-600, :root[data-theme="dark"] .text-violet-700, :root[data-theme="dark"] .text-violet-800 { color: #c4b5fd; }
 
-.kc-oscuro .bg-orange-50 { background-color: #3a2312; }
-.kc-oscuro .bg-orange-100 { background-color: #42270f; }
-.kc-oscuro .border-orange-300 { border-color: #7a4419; }
-.kc-oscuro .text-orange-700 { color: #fdba74; }
+:root[data-theme="dark"] .bg-orange-50 { background-color: #3a2312; }
+:root[data-theme="dark"] .bg-orange-100 { background-color: #42270f; }
+:root[data-theme="dark"] .border-orange-300 { border-color: #7a4419; }
+:root[data-theme="dark"] .text-orange-700 { color: #fdba74; }
 
-.kc-oscuro .bg-green-50 { background-color: #0f2a1a; }
-.kc-oscuro .text-green-600, .kc-oscuro .text-green-700 { color: #4ade80; }
-.kc-oscuro .text-green-800 { color: #bbf7d0; }
+:root[data-theme="dark"] .bg-green-50 { background-color: #0f2a1a; }
+:root[data-theme="dark"] .text-green-600, :root[data-theme="dark"] .text-green-700 { color: #4ade80; }
+:root[data-theme="dark"] .text-green-800 { color: #bbf7d0; }
 
-.kc-oscuro .bg-sky-50 { background-color: #0f2533; }
-.kc-oscuro .bg-sky-100 { background-color: #12304a; }
-.kc-oscuro .text-sky-800 { color: #bae6fd; }
+:root[data-theme="dark"] .bg-sky-50 { background-color: #0f2533; }
+:root[data-theme="dark"] .bg-sky-100 { background-color: #12304a; }
+:root[data-theme="dark"] .text-sky-800 { color: #bae6fd; }
 
-.kc-oscuro .text-pink-700 { color: #f9a8d4; }
+:root[data-theme="dark"] .text-pink-700 { color: #f9a8d4; }
 
 /* Tintes de equipo (teams.js): el nombre va con el color de texto general */
-.kc-oscuro .bg-pink-50 { background-color: #3a1830; }
-.kc-oscuro .bg-yellow-50 { background-color: #2e2a10; }
-.kc-oscuro .bg-fuchsia-50 { background-color: #36163b; }
-.kc-oscuro .bg-cyan-50 { background-color: #0e2a30; }
+:root[data-theme="dark"] .bg-pink-50 { background-color: #3a1830; }
+:root[data-theme="dark"] .bg-yellow-50 { background-color: #2e2a10; }
+:root[data-theme="dark"] .bg-fuchsia-50 { background-color: #36163b; }
+:root[data-theme="dark"] .bg-cyan-50 { background-color: #0e2a30; }
 
 /* Racha en fuego: el naranja oscuro se pierde sobre fondo oscuro */
-.kc-oscuro .streak-fire { color: #fb923c; }
+:root[data-theme="dark"] .streak-fire { color: #fb923c; }
 
 /* Campos de formulario: el navegador los pinta blancos por su cuenta */
-.kc-oscuro input, .kc-oscuro textarea, .kc-oscuro select { background-color: #141826; color: #e6e9f2; }
-.kc-oscuro input::placeholder, .kc-oscuro textarea::placeholder { color: #7c859c; }
+:root[data-theme="dark"] input, :root[data-theme="dark"] textarea, :root[data-theme="dark"] select { background-color: #141826; color: #eceff8; }
+:root[data-theme="dark"] input::placeholder, :root[data-theme="dark"] textarea::placeholder { color: #828aa0; }
 
 /* Botón principal desactivado: el gris claro de Tailwind encandila en oscuro */
-.kc-oscuro .disabled\:bg-slate-300:disabled { background-color: #2c3346; color: #7c859c; }
+:root[data-theme="dark"] .disabled\:bg-slate-300:disabled { background-color: #2a3042; color: #9aa2b6; }

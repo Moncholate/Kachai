@@ -1,0 +1,15 @@
+/* AUTO-GENERATED from design-tokens/tokens.json — do not edit by hand.
+   Change tokens.json and run `npm run sync` in Apps/design-tokens. */
+
+/* Un color por rol gramatical. El valor claro es el onTint medido cuando
+   existe (texto sobre el tinte del propio rol) y si no el light.
+
+   --marca es el índigo de identidad del Hub, y va aquí JUNTO a los roles
+   precisamente para que se vea que son cosas distintas. No estaba tokenizado
+   para las apps React, así que cada sitio que necesitaba "el índigo de marca
+   sobre fondo oscuro" se inventó el suyo, y los cuatro cayeron en #a5b4fc —
+   que es, exacto, el valor oscuro del rol MODAL. Los tokens dicen desde el
+   principio que el acento de interfaz va DESACOPLADO de los roles; sin una
+   variable que ofrecer, esa regla no se podía cumplir. */
+:root{ --rol-wh:#115e59; --rol-subject:#1d4ed8; --rol-auxiliary:#be123c; --rol-verb:#b91c1c; --rol-complement:#475569; --rol-modal:#4f46e5; --rol-adverb:#854d0e; --marca:#5850ec; }
+:root[data-theme="dark"]{ --rol-wh:#2dd4bf; --rol-subject:#60a5fa; --rol-auxiliary:#fda4af; --rol-verb:#f87171; --rol-complement:#cbd5e1; --rol-modal:#a5b4fc; --rol-adverb:#fbbf24; --marca:#8a83ff; }
