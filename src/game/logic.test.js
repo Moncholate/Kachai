@@ -244,3 +244,17 @@ describe('mezclar preguntas', () => {
     expect(playedQuestions(qs, [1, 0])).toBe(qs) // la actividad cambió de largo
   })
 })
+
+describe('Picture Practice', () => {
+  it('cada pregunta trae su imagen, y la imagen existe en public/', async () => {
+    const { existsSync } = await import('node:fs')
+    const sets = SETS.filter((s) => s.type === 'picture-practice')
+    expect(sets.length).toBeGreaterThan(0)
+    for (const s of sets) {
+      for (const q of s.questions) {
+        expect(q.image).toMatch(/^images\//)
+        expect(existsSync(`public/${q.image}`), q.image).toBe(true)
+      }
+    }
+  })
+})

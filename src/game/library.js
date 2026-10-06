@@ -102,6 +102,8 @@ export function imageError(image, idioma) {
   const m = mensajes(idioma)
   if (!image) return null
   if (image.startsWith('data:image/')) return image.length > MAX_IMAGE_CHARS ? m.imagenPesada : null
+  // las imágenes que vienen con la app (Picture Practice): public/images/…
+  if (/^images\/[\w./-]+\.(jpe?g|png|webp)$/.test(image)) return null
   return /^https:\/\/\S+$/.test(image) ? null : m.imagenHttps
 }
 

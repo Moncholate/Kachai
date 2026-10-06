@@ -204,6 +204,7 @@ export const TEXTOS = {
   comenzar: { es: 'Comenzar ▶', en: 'Start ▶' },
   desc_answer_builder: { es: 'Arman la respuesta a una pregunta abierta: sujeto, verbo con su tiempo y tipo de dato que pide la WH.', en: 'Students build the answer to an open question: subject, verb with its tense, and the kind of information the WH word asks for.' },
   desc_exam_practice: { es: 'Repaso general de la EA estilo Kahoot: varios contenidos KC, 3–4 alternativas por pregunta.', en: 'General review of the learning experience, Kahoot style: several key contents, 3–4 options per question.' },
+  desc_picture_practice: { es: 'Opción múltiple con una imagen por pregunta en el proyector. La pista del tiempo está en la oración.', en: 'Multiple choice with a picture per question on the projector. The clue is in the sentence.' },
   desc_grammar_focus: { es: 'Un solo contenido KC, con distintos formatos de pregunta. Corta: 6 preguntas.', en: 'A single key content, with different question formats. Short: 6 questions.' },
 
   // ── Proyector · equipos ───────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { mc } from './logic.js'
 import { FOCUS } from './focus.js'
+import { PICTURES } from './pictures.js'
 
 /* Biblioteca de actividades: curso → EA (Experiencia de Aprendizaje) → set.
 
@@ -795,6 +796,10 @@ export const ACTIVITY_TYPES = {
     names: ['Midterm Practice', 'End-of-Term Practice'], // EA1 cierra con el midterm, EA2 con el end-of-term
     description: 'Repaso general de la EA estilo Kahoot: varios contenidos KC, 3–4 alternativas por pregunta.',
   },
+  'picture-practice': {
+    name: 'Picture Practice',
+    description: 'Opción múltiple con una imagen por pregunta en el proyector; la pista está en la oración.',
+  },
   'grammar-focus': {
     name: 'Grammar Focus',
     description: 'Un solo contenido KC, con distintos formatos de pregunta. Corta: 6 preguntas.',
@@ -848,6 +853,10 @@ export const COURSES = RAW.map((c) => ({
           questions: builder, practice: PRACTICE[c.id][i] },
         { ...base, id: `${c.id}-ea${i + 1}-exam`, type: 'exam-practice', title: ACTIVITY_TYPES['exam-practice'].names[i],
           questions: exam },
+        ...(PICTURES[c.id]?.[i] ?? []).map((p) => ({
+          ...base, id: `${c.id}-ea${i + 1}-pictures-${slug(p.topic)}`, type: 'picture-practice',
+          title: `${ACTIVITY_TYPES['picture-practice'].name} · ${p.topic}`, topic: p.topic, questions: p.questions,
+        })),
         ...(FOCUS[c.id]?.[i] ?? []).map((f) => ({
           ...base, id: `${c.id}-ea${i + 1}-focus-${slug(f.topic)}`, type: 'grammar-focus',
           title: `${ACTIVITY_TYPES['grammar-focus'].name} · ${f.topic}`, topic: f.topic, questions: f.questions,

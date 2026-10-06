@@ -4,3 +4,6 @@ dist
 
 # Audios originales (Suno/Audacity): pesados; solo se publica public/audio
 audio source/
+
+# Imágenes originales (Nano Banana): pesadas; solo se publica public/images
+image source/
