@@ -3,16 +3,19 @@
 
    Web Audio y no <audio loop>: un AudioBufferSource con loop repite sin hueco,
    y los temas están cortados para empalmar justo en el compás (ver audio source/).
+   Intro + loop, como en los juegos: con `loopStart` el tema suena desde el
+   principio y, al llegar al final del archivo, vuelve a loopStart (s), no al
+   inicio. Los cortes y loopStart salen de tools/make-loop.mjs --intro.
    Los efectos se sintetizan aquí mismo: no hay archivos que cargar. */
 
 const TRACKS = {
   lobby: { file: 'lobby.ogg', loop: true },
   answering: { file: 'answering.ogg', loop: true }, // Tick Tack Minigame
-  answering2: { file: 'answering-2.ogg', loop: true }, // Clockwork Groove
-  answering3: { file: 'answering-3.ogg', loop: true }, // Village Quest
-  answering4: { file: 'answering-4.ogg', loop: true }, // Ticking Pulse
-  answering5: { file: 'answering-5.ogg', loop: true }, // Pendulum's Last Tick
-  final: { file: 'final.ogg', loop: true }, // Final Question: solo en la última pregunta
+  answering2: { file: 'answering-2.ogg', loop: true, loopStart: 29.3447 }, // Clockwork Groove
+  answering3: { file: 'answering-3.ogg', loop: true, loopStart: 4.2658 }, // Village Quest
+  answering4: { file: 'answering-4.ogg', loop: true, loopStart: 77.874 }, // Ticking Pulse (la intro ya dura más que una pregunta)
+  answering5: { file: 'answering-5.ogg', loop: true, loopStart: 14.803 }, // Pendulum's Last Tick
+  final: { file: 'final.ogg', loop: true, loopStart: 26.4896 }, // Final Question: solo en la última pregunta
   podium: { file: 'podium.ogg', loop: false },
 }
 
@@ -119,6 +122,7 @@ function createSoundEngine() {
     const src = ctx.createBufferSource()
     src.buffer = buffer
     src.loop = TRACKS[name].loop
+    src.loopStart = TRACKS[name].loopStart ?? 0 // loopEnd 0 = fin del archivo
     const gain = ctx.createGain()
     const t = ctx.currentTime
     gain.gain.setValueAtTime(0, t)

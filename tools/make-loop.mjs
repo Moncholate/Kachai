@@ -1,6 +1,11 @@
 /* Corta un tema de Suno en un loop sin costura para la música de fondo.
 
-   Uso: node tools/make-loop.mjs "audio source/Tema.wav" public/audio/salida.ogg [--min 35] [--max 65] [--lufs -15.1]
+   Uso: node tools/make-loop.mjs "audio source/Tema.wav" public/audio/salida.ogg [--min 35] [--max 65] [--lufs -15.1] [--intro]
+
+   --intro: el archivo trae el tema DESDE EL PRINCIPIO (sin el silencio inicial)
+   hasta el fin del loop, y el loop vuelve a `loopStart` (lo informa al final;
+   va en TRACKS de src/host/sound.js). Así suena como en los juegos: la intro
+   una vez y después da vueltas el cuerpo del tema. Sin --intro, solo el loop.
 
    1. Tempo y fase del pulso (los temas se piden a ~116 BPM con un tic en cada pulso).
    2. Busca inicio y fin del loop en bordes de compás, entre --min y --max segundos,
@@ -23,6 +28,7 @@ const MIN = opt('min', 35)
 const MAX = opt('max', 65)
 const LUFS = opt('lufs', -15.1)
 const TAIL_GUARD = 4 // s finales que no se usan
+const INTRO = args.includes('--intro')
 
 const decode = (sr, ch) => {
   const raw = execFileSync('ffmpeg', ['-v', 'error', '-i', input, '-ac', String(ch), '-ar', String(sr), '-f', 'f32le', '-'], { maxBuffer: 2 ** 31 })
@@ -176,13 +182,22 @@ let e48 = Math.round(best.e * SR_OUT)
   e48 += bestD
 }
 
-// loop = [s, e); los últimos 20 ms se funden con lo que sonaba justo antes de s
-const L = e48 - s48
+/* Con --intro el archivo parte donde empieza a sonar el tema (10 ms antes del
+   primer sonido), no en el segundo 0 de Suno, que a veces trae silencio. */
+let from = s48
+if (INTRO) {
+  let first = 0
+  while (first < s48 && Math.abs(stereo[first * 2]) < 0.003 && Math.abs(stereo[first * 2 + 1]) < 0.003) first++
+  from = Math.max(0, first - Math.round(0.01 * SR_OUT))
+}
+
+// archivo = [from, e); los últimos 20 ms se funden con lo que sonaba justo antes de s
+const L = e48 - from
 const C = Math.round(0.02 * SR_OUT)
 const out = new Float32Array(L * 2)
 for (let i = 0; i < L; i++) {
   for (let ch = 0; ch < 2; ch++) {
-    let v = stereo[(s48 + i) * 2 + ch]
+    let v = stereo[(from + i) * 2 + ch]
     const k = i - (L - C)
     if (k >= 0) {
       const w = k / C
@@ -207,12 +222,12 @@ execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'f32le', '-ar', String(SR_OUT
 const SEAM = 4 * SR_OUT
 const seam = new Float32Array(SEAM * 4)
 seam.set(out.subarray((L - SEAM) * 2, L * 2), 0)
-seam.set(out.subarray(0, SEAM * 2), SEAM * 2)
+seam.set(out.subarray((s48 - from) * 2, (s48 - from + SEAM) * 2), SEAM * 2)
 execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'f32le', '-ar', String(SR_OUT), '-ac', '2', '-i', '-',
   '-af', `volume=${gain.toFixed(2)}dB`, `${output}.seam.wav`], { input: Buffer.from(seam.buffer) })
 
 console.log(JSON.stringify({
   input, output, bpm: +bpm.toFixed(2), start: +(s48 / SR_OUT).toFixed(3), end: +(e48 / SR_OUT).toFixed(3),
-  seconds: +(L / SR_OUT).toFixed(3), bars: best.m, match: +best.score.toFixed(3), lufsBefore: lufs, gainDb: +gain.toFixed(2),
+  seconds: +((e48 - s48) / SR_OUT).toFixed(3), ...(INTRO ? { loopStart: +((s48 - from) / SR_OUT).toFixed(4), fileSeconds: +(L / SR_OUT).toFixed(3) } : {}), bars: best.m, match: +best.score.toFixed(3), lufsBefore: lufs, gainDb: +gain.toFixed(2),
 }))
 
