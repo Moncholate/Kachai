@@ -11,13 +11,15 @@ const TRACKS = {
   answering2: { file: 'answering-2.ogg', loop: true }, // Clockwork Groove
   answering3: { file: 'answering-3.ogg', loop: true }, // Village Quest
   answering4: { file: 'answering-4.ogg', loop: true }, // Ticking Pulse
+  answering5: { file: 'answering-5.ogg', loop: true }, // Pendulum's Last Tick
+  final: { file: 'final.ogg', loop: true }, // Final Question: solo en la última pregunta
   podium: { file: 'podium.ogg', loop: false },
 }
 
 /* Temas para responder, en rotación: cada pregunta cambia de tema y nunca
    repite el de la anterior. Todos a 116 BPM y al mismo volumen (−15 LUFS),
    cortados en loop con tools/make-loop.mjs. */
-export const ANSWERING_TRACKS = ['answering', 'answering2', 'answering3', 'answering4']
+export const ANSWERING_TRACKS = ['answering', 'answering2', 'answering3', 'answering4', 'answering5']
 export const answeringTrack = (round, qIndex) =>
   ANSWERING_TRACKS[(((round || 0) + qIndex + 1) % ANSWERING_TRACKS.length + ANSWERING_TRACKS.length) % ANSWERING_TRACKS.length]
 /* Efectos de Suno, cortos y de una sola vez: van directo al master, sin fundidos. */
@@ -38,6 +40,7 @@ const EFFECTS = {
   timesUp: 'times-up.ogg', // se acabó el tiempo
   join: 'join.ogg', // alguien entró a la sala
   streak: 'streak.ogg', // 🔥 alguien llegó a 3 seguidas, o a 5, 10…
+  double: 'double.ogg', // ⚡ el profesor activó el 2X
 }
 const MUSIC_LEVEL = 0.8 // deja aire a los efectos por encima de la música
 const DUCKED_LEVEL = 0.25 // últimos segundos: la música se aparta para que se oigan los tics

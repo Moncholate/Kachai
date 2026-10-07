@@ -178,7 +178,7 @@ function HostRoom({ store, pin, tema }) {
   const toggleDouble = () => {
     const on = !state.nextDouble
     const now = rankingNow()
-    if (on) getSound().effect('streak')
+    if (on) getSound().effect('double')
     store.update(`${base}/state`, {
       nextDouble: on, board: buildBoard(now, previousTotals(now), true, on ? DUEL_GAP * DOUBLE : DUEL_GAP),
     })
@@ -283,7 +283,9 @@ function HostRoom({ store, pin, tema }) {
      responder arranca con el cronómetro. Revelar y ranking tampoco llevan música. */
   const stage = podiumStage(state?.phase === 'end' ? state.startedAt : null, now)
   // En el podio la música la pone el guion de abajo (la fanfarria larga entra con el 1.º).
+  /* La última pregunta tiene su tema propio (Final Question), haya 2X o no. */
   const track = state?.phase === 'end' ? null
+    : state?.phase === 'answering' && isLast ? 'final'
     : ({ lobby: 'lobby', answering: answeringTrack(state?.round, state?.qIndex) }[state?.phase] ?? null)
   useEffect(() => { getSound().play(track) }, [track])
   useEffect(() => () => { getSound().play(null) }, [])

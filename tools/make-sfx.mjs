@@ -12,7 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 const SRC = 'audio source'
 const OUT = 'public/audio'
 
-// archivo → [origen, largo en ms, fundido final en ms, volumen objetivo (LUFS)]
+// archivo → [origen, largo en ms, fundido final en ms, volumen objetivo (LUFS), silencio inicial a saltar en ms]
 export const SFX = {
   'drumroll-short': ['Drum roll short.wav', 1250, 70, -15],
   'drumroll-long': ['Drum roll long.wav', 2100, 80, -15],
@@ -26,12 +26,13 @@ export const SFX = {
   join: ['User connected.wav', 900, 150, -16],
   'times-up': ["Time's up.wav", 750, 60, -15],
   streak: ['Streak.wav', 900, 120, -16],
+  double: ['2X.wav', 2450, 650, -14, 200], // golpe del 2X: arranca a los 0,2 s y se apaga hacia los 2,6 s
 }
 
 const only = process.argv[2]
-for (const [name, [file, ms, fade, lufs]] of Object.entries(SFX)) {
+for (const [name, [file, ms, fade, lufs, skip = 0]] of Object.entries(SFX)) {
   if (only && only !== name) continue
-  const cut = ['-af', `atrim=0:${ms / 1000},afade=t=out:st=${(ms - fade) / 1000}:d=${fade / 1000}`]
+  const cut = ['-af', `atrim=${skip / 1000}:${(skip + ms) / 1000},asetpts=PTS-STARTPTS,afade=t=out:st=${(ms - fade) / 1000}:d=${fade / 1000}`]
   // volumen del tramo recortado (el último "I:" de ebur128 es el integrado)
   const meter = spawnSync('ffmpeg', ['-hide_banner', '-nostats', '-i', `${SRC}/${file}`, ...cut.slice(0, 1), `${cut[1]},ebur128`, '-f', 'null', '-'])
   const measured = Number([...meter.stderr.toString().matchAll(/I:\s+(-?[\d.]+) LUFS/g)].at(-1)[1])
