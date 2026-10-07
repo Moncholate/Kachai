@@ -410,7 +410,7 @@ function HostRoom({ store, pin, tema }) {
       </header>
       {inGame && state.phase !== 'end' && <div className="relative"><JoinCorner pin={pin} /></div>}
 
-      <main className={`flex-1 w-full mx-auto ${fit ? 'min-h-0 overflow-y-auto max-w-7xl px-6 py-3 flex flex-col' : 'max-w-6xl p-6'}`}>
+      <main className={`flex-1 w-full mx-auto ${fit ? 'min-h-0 overflow-y-auto max-w-[110rem] px-6 py-4 flex flex-col' : 'max-w-6xl p-6'}`}>
         {state.phase === 'lobby' && editing && user && (
           <ActivityEditor store={store} user={user} editing={editing} library={library} customIndex={customIndex}
             current={set} onSelect={(setId) => store.update(`${base}/meta`, { setId })} onClose={() => setEditing(null)} />
@@ -432,7 +432,34 @@ function HostRoom({ store, pin, tema }) {
             }} />
         )}
 
-        {(state.phase === 'reading' || state.phase === 'answering') && (
+        {(state.phase === 'reading' || state.phase === 'answering') && current?.image && state.question.kind === 'choice' && (
+          <PictureLayout src={current.image}>
+            <p className="text-center text-base font-bold uppercase tracking-widest text-slate-500">
+              {state.practice && <span className="block text-violet-600">{t('preguntaPractica')}</span>}
+              {state.double && <DoubleBanner />}
+              {state.phase === 'reading' ? t('leeLaPregunta') : t('respondeCelular')}
+            </p>
+            <Prompt text={state.question.prompt} highlightWh={false} className="text-center text-4xl xl:text-5xl" />
+            <TimerBar
+              start={state.startedAt}
+              ms={(state.phase === 'reading' ? meta.readSec : meta.answerSec) * 1000}
+              now={now}
+              className="w-full"
+            />
+            {state.phase === 'answering' && <ChoiceTiles options={state.question.options} compact stacked />}
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+              {state.phase === 'answering' && (
+                <p className="text-xl text-slate-600">
+                  <b className="text-slate-900 text-3xl tabular-nums">{answeredCount}</b>{t('respondieronDe', activeIds.length)}
+                </p>
+              )}
+              <Button variant="ghost" className="!py-2" onClick={state.phase === 'reading' ? startAnswering : () => { getSound().effect('timesUp'); reveal() }}>
+                {state.phase === 'reading' ? t('saltarLectura') : t('terminarTiempo')}
+              </Button>
+            </div>
+          </PictureLayout>
+        )}
+        {(state.phase === 'reading' || state.phase === 'answering') && !(current?.image && state.question.kind === 'choice') && (
           <section className={`flex-1 min-h-0 flex flex-col ${current?.image ? 'gap-3' : 'gap-8'}`}>
             <p className="text-center text-base font-bold uppercase tracking-widest text-slate-500">
               {state.practice && <span className="block text-violet-600">{t('preguntaPractica')}</span>}
@@ -872,6 +899,22 @@ function ActivityEditor({ store, user, editing, library, customIndex, current, o
   )
 }
 
+/* Pregunta con imagen en pantalla ancha: la imagen a la izquierda con TODO el
+   alto de la ventana, y la pregunta con sus alternativas a la derecha. En una
+   pantalla de notebook (ancha y baja) apilarlas dejaba la foto en ~300 px de
+   alto con los costados vacíos. En pantallas angostas se apila igual.
+   (pl-20: el QR chico de la esquina no tapa la imagen.) */
+function PictureLayout({ src, children }) {
+  return (
+    <section className="flex-1 min-h-0 flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,8fr)_minmax(0,5fr)] lg:gap-8 lg:pl-20">
+      <div className="flex-1 min-h-[30vh] lg:min-h-0 flex items-center justify-center">
+        <img src={src} alt="" className="max-h-full max-w-full rounded-2xl shadow-md object-contain bg-white" />
+      </div>
+      <div className="min-h-0 flex flex-col justify-center gap-4">{children}</div>
+    </section>
+  )
+}
+
 /* Ocupa todo el alto libre de la columna (flex-1) sin deformarse ni pasar de
    su tamaño real. `min` = lo que se le respeta si falta espacio. */
 function QuestionImage({ src, min = 'min-h-[22vh]' }) {
@@ -1205,12 +1248,13 @@ function BuilderOptions({ question, mode }) {
   )
 }
 
-/* `compact`: con imagen, alternativas más bajas para dejarle alto a la foto. */
-function ChoiceTiles({ options, answer, votes, compact = false }) {
+/* `compact`: con imagen, alternativas más bajas para dejarle alto a la foto.
+   `stacked`: una debajo de otra (en la columna angosta junto a la imagen). */
+function ChoiceTiles({ options, answer, votes, compact = false, stacked = false }) {
   const revealed = answer != null
   const total = votes ? votes.reduce((a, b) => a + b, 0) : 0
   return (
-    <div className={`grid ${choiceCols(options)} gap-3 max-w-5xl w-full mx-auto`}>
+    <div className={`grid ${stacked ? 'grid-cols-1' : choiceCols(options)} gap-3 max-w-5xl w-full mx-auto`}>
       {options.map((o, i) => {
         const st = CHOICE_STYLES[i]
         const right = o === answer
@@ -1236,18 +1280,31 @@ function ChoiceReveal({ state, isLast, ranking, image, onNext }) {
   const { solution, stats } = state
   const pct = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0
   return (
-    <section className={`flex-1 min-h-0 flex flex-col ${image ? 'gap-4' : 'gap-8 justify-center'}`}>
-      {image && <QuestionImage src={image} min="min-h-[16vh]" />}
-      <Prompt text={state.question.prompt} highlightWh={false} className="text-center text-4xl md:text-5xl" />
-      <ChoiceTiles options={state.question.options} answer={solution.answer} votes={stats.votes} compact={Boolean(image)} />
-      <p className="text-center text-2xl text-slate-600">
-        <b className="text-slate-900 text-4xl font-black tabular-nums">{pct}%</b>{t('correctoRespuestas', stats.answered)}
-      </p>
-      {state.practice && <PracticePoints ranking={ranking} />}
-      <div className="flex justify-center">
-        <Button onClick={onNext}>{t(nextLabel(state, isLast))}</Button>
-      </div>
-    </section>
+    image ? (
+      <PictureLayout src={image}>
+        <Prompt text={state.question.prompt} highlightWh={false} className="text-center text-4xl xl:text-5xl" />
+        <ChoiceTiles options={state.question.options} answer={solution.answer} votes={stats.votes} compact stacked />
+        <p className="text-center text-xl text-slate-600">
+          <b className="text-slate-900 text-3xl font-black tabular-nums">{pct}%</b>{t('correctoRespuestas', stats.answered)}
+        </p>
+        {state.practice && <PracticePoints ranking={ranking} />}
+        <div className="flex justify-center">
+          <Button onClick={onNext}>{t(nextLabel(state, isLast))}</Button>
+        </div>
+      </PictureLayout>
+    ) : (
+      <section className="flex-1 min-h-0 flex flex-col gap-8 justify-center">
+        <Prompt text={state.question.prompt} highlightWh={false} className="text-center text-4xl md:text-5xl" />
+        <ChoiceTiles options={state.question.options} answer={solution.answer} votes={stats.votes} />
+        <p className="text-center text-2xl text-slate-600">
+          <b className="text-slate-900 text-4xl font-black tabular-nums">{pct}%</b>{t('correctoRespuestas', stats.answered)}
+        </p>
+        {state.practice && <PracticePoints ranking={ranking} />}
+        <div className="flex justify-center">
+          <Button onClick={onNext}>{t(nextLabel(state, isLast))}</Button>
+        </div>
+      </section>
+    )
   )
 }
 
