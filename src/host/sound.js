@@ -14,8 +14,7 @@ const TRACKS = {
   answering2: { file: 'answering-2.ogg', loop: true, loopStart: 29.3447 }, // Clockwork Groove
   answering3: { file: 'answering-3.ogg', loop: true, loopStart: 4.2658 }, // Village Quest
   answering4: { file: 'answering-4.ogg', loop: true, loopStart: 77.874 }, // Ticking Pulse (la intro ya dura más que una pregunta)
-  answering5: { file: 'answering-5.ogg', loop: true, loopStart: 14.803 }, // Pendulum's Last Tick
-  answering6: { file: 'answering-6.ogg', loop: true, loopStart: 4.2657 }, // Pendulum Kingdom
+  answering5: { file: 'answering-5.ogg', loop: true, loopStart: 4.2657 }, // Pendulum Kingdom
   final: { file: 'final.ogg', loop: true, loopStart: 26.4896 }, // Final Question: solo en la última pregunta
   /* La fanfarria del campeón es música (se detiene con fundido al salir del podio),
      pero suena como efecto: canal de efectos, sin fundido de entrada (se comía el
@@ -26,7 +25,7 @@ const TRACKS = {
 /* Temas para responder, en rotación: cada pregunta cambia de tema y nunca
    repite el de la anterior. Todos a 116 BPM y al mismo volumen (−15 LUFS),
    cortados en loop con tools/make-loop.mjs. */
-export const ANSWERING_TRACKS = ['answering', 'answering2', 'answering3', 'answering4', 'answering5', 'answering6']
+export const ANSWERING_TRACKS = ['answering', 'answering2', 'answering3', 'answering4', 'answering5']
 export const answeringTrack = (round, qIndex) =>
   ANSWERING_TRACKS[(((round || 0) + qIndex + 1) % ANSWERING_TRACKS.length + ANSWERING_TRACKS.length) % ANSWERING_TRACKS.length]
 /* Efectos de Suno, cortos y de una sola vez: van directo al master, sin fundidos. */
