@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNow, useStore, useValue } from '../net/hooks.js'
 import { STREAK_MIN, historyKey, isChoice, normalize } from '../game/logic.js'
 import { normalizeQuestion } from '../game/library.js'
@@ -188,7 +188,7 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
       <div className="flex flex-col gap-6 pt-8">
         {state.practice && <PracticeBadge />}
         {state.double && <DoubleBadge />}
-        {state.question.hasImage && <LookAtScreen />}
+        {state.question.hasImage && <QuestionPicture src={state.question.image} />}
         <p className="text-center font-bold uppercase tracking-widest text-slate-500 text-sm">{t('leeAtento')}</p>
         <Prompt text={state.question.prompt} highlightWh={state.question.kind !== 'choice'} className="text-center text-3xl" />
         <TimerBar start={state.startedAt} ms={meta.readSec * 1000} now={now} />
@@ -210,7 +210,7 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
         <>
           {state.practice && <PracticeBadge />}
           {state.double && <DoubleBadge />}
-          {state.question.hasImage && <LookAtScreen />}
+          {state.question.hasImage && <QuestionPicture src={state.question.image} />}
           {state.question.kind === 'choice'
             ? <ChoiceForm key={`${state.round}-${state.qIndex}`} question={state.question}
                 timer={<TimerBar start={state.startedAt} ms={answerMs} now={now} />} onSubmit={submit} />
@@ -472,6 +472,62 @@ function ReviewItem({ n, q, h }) {
 }
 
 /* La imagen de la pregunta se ve solo en el proyector. */
+/* La imagen de la pregunta en el celular, cuando viaja como enlace (ver
+   buildPublicQuestion): chica para que entren las alternativas, y al tocarla se
+   abre a pantalla completa con zoom (la app bloquea el pellizco a propósito).
+   Las fotos subidas en el editor no viajan: ahí queda el aviso de mirar la pantalla. */
+function QuestionPicture({ src }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  if (!src) return <LookAtScreen />
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="relative block w-full mb-3">
+        <img src={src} alt="" className="mx-auto max-h-44 max-w-full rounded-xl object-contain bg-white shadow" />
+        <span className="absolute bottom-2 right-2 rounded-full bg-slate-900/70 text-white text-xs font-bold px-2.5 py-1">
+          🔍 {t('tocaAgrandar')}
+        </span>
+      </button>
+      {open && <PictureViewer src={src} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+/* Pantalla completa: tocar acerca justo donde se tocó (×2,5), tocar de nuevo aleja. */
+function PictureViewer({ src, onClose }) {
+  const t = useT()
+  const box = useRef(null)
+  const [focus, setFocus] = useState(null) // { x, y } entre 0 y 1, o null sin zoom
+  useEffect(() => {
+    const el = box.current
+    if (!el || !focus) return
+    el.scrollLeft = focus.x * el.scrollWidth - el.clientWidth / 2
+    el.scrollTop = focus.y * el.scrollHeight - el.clientHeight / 2
+  }, [focus])
+  const toggle = (e) => {
+    if (focus) return setFocus(null)
+    const r = e.currentTarget.getBoundingClientRect()
+    setFocus({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height })
+  }
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/95 flex flex-col">
+      <div ref={box} className={`flex-1 overflow-auto ${focus ? '' : 'flex items-center justify-center'}`}>
+        {focus
+          ? (
+            <div className="min-h-full w-max flex items-center">
+              <img src={src} alt="" onClick={toggle} className="max-w-none w-[250vw] cursor-zoom-out" />
+            </div>
+          )
+          : <img src={src} alt="" onClick={toggle} className="w-full max-h-full object-contain cursor-zoom-in" />}
+      </div>
+      <p className="text-center text-sm text-slate-300 py-2">{t('zoomAyuda')}</p>
+      <button type="button" onClick={onClose} className="mx-4 mb-4 rounded-xl bg-white text-slate-900 font-bold py-3">
+        {t('cerrarImagen')}
+      </button>
+    </div>
+  )
+}
+
 function LookAtScreen() {
   const t = useT()
   return (

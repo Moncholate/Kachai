@@ -258,3 +258,14 @@ describe('Picture Practice', () => {
     }
   })
 })
+
+describe('imagen en el celular', () => {
+  const base = { prompt: 'Q?', answer: 'a', options: ['a', 'b', 'c'] }
+  it('viaja el enlace de las imágenes de la app; las fotos subidas, solo el aviso', () => {
+    expect(buildPublicQuestion({ ...base, image: 'images/ps-vs-pc/1.jpg' })).toMatchObject({ hasImage: true, image: 'images/ps-vs-pc/1.jpg' })
+    const uploaded = buildPublicQuestion({ ...base, image: 'data:image/jpeg;base64,AAAA' })
+    expect(uploaded.hasImage).toBe(true)
+    expect(uploaded.image).toBeUndefined()
+    expect(buildPublicQuestion(base).hasImage).toBeUndefined()
+  })
+})

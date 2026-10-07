@@ -94,9 +94,11 @@ export const mc = (prompt, answer, ...wrong) => ({ prompt, answer, options: [ans
 /* Lo que ven los celulares: opciones barajadas, SIN la solución. La barajada la
    hace el profesor una vez, así todos ven el mismo orden. */
 export function buildPublicQuestion(q, rand = Math.random) {
-  /* La imagen se ve solo en el proyector (la tiene el profesor): a los celulares
-     viaja apenas el aviso, para no mandar cientos de KB a cada alumno. */
-  const image = q.image ? { hasImage: true } : {}
+  /* Imagen en el celular: si es un enlace (las que vienen con la app, o https)
+     viaja el enlace, que pesa nada, y cada celular la baja de la web. Si es una
+     foto subida en el editor (data:, ~150 KB), solo el aviso: mandarla por
+     Firebase a cada alumno gastaría la cuota gratuita en pocas clases. */
+  const image = !q.image ? {} : q.image.startsWith('data:') ? { hasImage: true } : { hasImage: true, image: q.image }
   if (isChoice(q)) return { kind: 'choice', prompt: q.prompt, options: shuffle(q.options, rand), ...image }
   const whOthers = shuffle(Object.keys(WH_TYPES).filter((k) => k !== q.wh), rand).slice(0, 3)
   return {

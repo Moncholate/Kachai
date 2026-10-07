@@ -383,10 +383,13 @@ function HostRoom({ store, pin, tema }) {
 
   const ranking = individualRanking(players, scores)
   const teamRank = teamMode ? teamRanking(teams, players, scores) : null
+  /* Pregunta y revelar caben en la ventana, sin bajar: la página mide lo mismo
+     que la pantalla y la imagen se queda con el espacio que sobra. */
+  const fit = ['reading', 'answering', 'reveal'].includes(state.phase)
 
   return (
     <ProveedorIdioma value={idioma}>
-    <div className="min-h-screen flex flex-col">
+    <div className={`flex flex-col ${fit ? 'h-dvh' : 'min-h-screen'}`}>
       <header className="flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 bg-white border-b border-slate-200">
         <Logo className="text-2xl" />
         <span className="text-slate-500">{t('pin')} <b className="text-slate-900 tracking-widest">{pin}</b></span>
@@ -407,7 +410,7 @@ function HostRoom({ store, pin, tema }) {
       </header>
       {inGame && state.phase !== 'end' && <div className="relative"><JoinCorner pin={pin} /></div>}
 
-      <main className="flex-1 w-full max-w-6xl mx-auto p-6">
+      <main className={`flex-1 w-full mx-auto ${fit ? 'min-h-0 overflow-y-auto max-w-7xl px-6 py-3 flex flex-col' : 'max-w-6xl p-6'}`}>
         {state.phase === 'lobby' && editing && user && (
           <ActivityEditor store={store} user={user} editing={editing} library={library} customIndex={customIndex}
             current={set} onSelect={(setId) => store.update(`${base}/meta`, { setId })} onClose={() => setEditing(null)} />
@@ -430,34 +433,34 @@ function HostRoom({ store, pin, tema }) {
         )}
 
         {(state.phase === 'reading' || state.phase === 'answering') && (
-          <section className={`flex flex-col pt-6 ${current?.image ? "gap-5" : "gap-10"}`}>
-            <p className="text-center text-lg font-bold uppercase tracking-widest text-slate-500">
+          <section className={`flex-1 min-h-0 flex flex-col ${current?.image ? 'gap-3' : 'gap-8'}`}>
+            <p className="text-center text-base font-bold uppercase tracking-widest text-slate-500">
               {state.practice && <span className="block text-violet-600">{t('preguntaPractica')}</span>}
               {state.double && <DoubleBanner />}
               {state.phase === 'reading' ? t('leeLaPregunta') : t('respondeCelular')}
             </p>
-            {/* Grande mientras leen; al responder se achica para que entren las alternativas. */}
-            {current?.image && <QuestionImage src={current.image} className={state.phase === 'reading' ? 'max-h-[42vh]' : 'max-h-[24vh]'} />}
+            {/* La imagen se queda con todo el alto que sobra: más grande al leer,
+                y al responder cede lo justo para que entren las alternativas. */}
+            {current?.image ? <QuestionImage src={current.image} /> : <div className="flex-1" />}
             <Prompt text={state.question.prompt} highlightWh={state.question.kind !== 'choice'}
-              className={`text-center ${current?.image ? 'text-4xl md:text-5xl' : 'text-5xl md:text-7xl'}`} />
+              className={`text-center ${current?.image ? 'text-4xl lg:text-5xl' : 'text-5xl md:text-7xl'}`} />
             <TimerBar
               start={state.startedAt}
               ms={(state.phase === 'reading' ? meta.readSec : meta.answerSec) * 1000}
               now={now}
               className="max-w-3xl w-full mx-auto"
             />
-            {state.phase === 'answering' && (
-              <>
-                {state.question.kind === 'choice'
-                  ? <ChoiceTiles options={state.question.options} />
-                  : <BuilderOptions question={state.question} mode={meta.mode} />}
-                <p className="text-center text-2xl text-slate-600">
-                  <b className="text-slate-900 text-4xl tabular-nums">{answeredCount}</b>{t('respondieronDe', activeIds.length)}
+            {state.phase === 'answering' && (state.question.kind === 'choice'
+              ? <ChoiceTiles options={state.question.options} compact={Boolean(current?.image)} />
+              : <BuilderOptions question={state.question} mode={meta.mode} />)}
+            {!current?.image && <div className="flex-1" />}
+            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+              {state.phase === 'answering' && (
+                <p className="text-xl text-slate-600">
+                  <b className="text-slate-900 text-3xl tabular-nums">{answeredCount}</b>{t('respondieronDe', activeIds.length)}
                 </p>
-              </>
-            )}
-            <div className="flex justify-center">
-              <Button variant="ghost" onClick={state.phase === 'reading' ? startAnswering : () => { getSound().effect('timesUp'); reveal() }}>
+              )}
+              <Button variant="ghost" className="!py-2" onClick={state.phase === 'reading' ? startAnswering : () => { getSound().effect('timesUp'); reveal() }}>
                 {state.phase === 'reading' ? t('saltarLectura') : t('terminarTiempo')}
               </Button>
             </div>
@@ -515,17 +518,89 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
     : { teamMode: mode })
   const list = Object.entries(players).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0))
 
-  return (
-    <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-6">
-      <section className="rounded-3xl bg-white border border-slate-200 p-6 flex flex-col items-center text-center gap-3">
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">{t('unirseJuego')}</p>
-        {qr && <img src={qr} alt={t('qrUnirse')} className="w-64 h-64" />}
-        <p className="text-slate-500 break-all text-sm">{joinUrl.replace(/^https?:\/\//, '')}</p>
-        <p className="text-slate-500">{t('pinJuego')}</p>
-        <p className="text-6xl font-black tracking-[.2em] text-slate-900">{pin}</p>
-      </section>
+  const students = (
+    <ul className="flex flex-wrap gap-1.5">
+      {list.map(([id, p]) => (
+        <li key={id}
+          className={`group flex items-center gap-1 rounded-full pl-3 pr-1 py-0.5 text-sm font-bold border ${online[id] === false ? 'text-slate-400 border-dashed border-slate-300' : 'bg-slate-100 border-slate-200'}`}>
+          {p.name}
+          <button onClick={() => onKick(id)} title={t('expulsar')}
+            className="w-6 h-6 rounded-full text-slate-400 hover:bg-rose-100 hover:text-rose-700">×</button>
+        </li>
+      ))}
+    </ul>
+  )
+  const selected = (on) => (on ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300')
 
-      <section className="flex flex-col gap-5">
+  /* Izquierda, fija al bajar: lo que mira la sala (QR y PIN), quiénes entraron
+     y el botón de empezar. Derecha: qué se juega y cómo. */
+  return (
+    <div className="grid lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)] gap-5 items-start">
+      <aside className="flex flex-col gap-4 lg:sticky lg:top-4">
+        <section className="rounded-3xl bg-white border border-slate-200 p-5 flex flex-col items-center text-center gap-1.5">
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">{t('unirseJuego')}</p>
+          {qr && <img src={qr} alt={t('qrUnirse')} className="w-44 h-44" />}
+          <p className="text-slate-500 break-all text-xs">{joinUrl.replace(/^https?:\/\//, '')}</p>
+          <p className="text-slate-500 text-sm mt-1">{t('pinJuego')}</p>
+          <p className="text-[2.75rem] leading-none font-black tracking-[.15em] text-slate-900">{pin}</p>
+        </section>
+
+        <section className="rounded-3xl bg-white border border-slate-200 p-4">
+          <p className="font-bold mb-2">{t('alumnosN', list.length)}</p>
+          {list.length === 0 && <p className="text-sm text-slate-400">{t('esperandoUnan')}</p>}
+          {teamMode ? <p className="text-sm text-slate-500">{t('verEquiposAbajo')}</p> : students}
+        </section>
+
+        {/* Cómo se juega: una fila por ajuste, rótulo a la izquierda. */}
+        <section className="rounded-3xl bg-white border border-slate-200 px-4 py-3 flex flex-col divide-y divide-slate-100">
+          <SettingRow label={t('ordenPreguntas')}>
+            <Segmented value={meta.shuffle === true} onChange={(shuffle) => {
+              setMeta({ shuffle })
+              try { localStorage.setItem(MEZCLAR_KEY, shuffle ? '1' : '0') } catch { /* modo privado */ }
+            }} options={[[false, t('enOrden')], [true, t('mezcladas')]]} />
+          </SettingRow>
+          <SettingRow label={t('modoJuego')}>
+            <Segmented value={teamMode ? 'teams' : 'solo'} onChange={setTeamMode}
+              options={[['solo', t('individual')], ['teams', t('equipos')]]} />
+          </SettingRow>
+          <SettingRow label={t('tiempoLectura')}>
+            <Segmented value={meta.readSec} onChange={(readSec) => setMeta({ readSec })}
+              options={[[5, '5 s'], [8, '8 s'], [12, '12 s']]} />
+          </SettingRow>
+          <SettingRow label={t('tiempoResponder')}>
+            <Segmented value={meta.answerSec} onChange={(answerSec) => setMeta({ answerSec })}
+              options={[[20, '20'], [30, '30'], [45, '45'], [60, '60 s']]} />
+          </SettingRow>
+          {set.practice && (
+            <SettingRow label={t('practicaCorto')}>
+              <Segmented value={meta.practice !== false} onChange={(practice) => setMeta({ practice })}
+                options={[[true, t('si')], [false, t('no')]]} />
+            </SettingRow>
+          )}
+          {(set.type === 'answer-builder' || set.mechanic === 'builder') && (
+            <SettingRow label={t('sujetoYVerbo')}>
+              <Segmented value={meta.mode} onChange={(mode) => setMeta({ mode })}
+                options={[['select', t('elegirCorto')], ['write', t('escribirlos')]]} />
+            </SettingRow>
+          )}
+        </section>
+
+        {!setReady && (
+          <p className="text-center text-sm font-bold text-amber-700">
+            {user ? t('cargandoActividad') : t('iniciaSesionActividad')}
+          </p>
+        )}
+        <Button className="text-xl py-3.5" disabled={list.length === 0 || !setReady} onClick={onStart}>
+          {t('comenzar')}
+        </Button>
+        {onLastReport && (
+          <button onClick={onLastReport} className="self-center text-sm font-bold text-[#0F6FD6] hover:underline">
+            {t('verUltimoResumen')}
+          </button>
+        )}
+      </aside>
+
+      <section className="flex flex-col gap-4 min-w-0">
         <div className="rounded-3xl bg-white border border-slate-200 p-5 flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <div className="flex-1">
@@ -538,13 +613,13 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
             }} />
           </div>
           <Field label={t('curso')}>
-            <div className="grid grid-cols-[auto_repeat(3,minmax(0,1fr))] gap-2 items-center">
+            <div className="grid grid-cols-[auto_repeat(3,minmax(0,1fr))] gap-1.5 items-center">
               {LEVELS.map((level) => (
                 <Fragment key={level}>
-                  <span className="text-sm font-bold text-slate-500 pr-1">{level}</span>
+                  <span className="text-sm font-bold text-slate-500 pr-2">{level}</span>
                   {COURSES.filter((c) => c.level === level).map((c) => (
                     <button key={c.id} onClick={() => setMeta({ setId: sameTypeIn(c.eas[eaIndex], set.type).id })}
-                      className={`min-w-0 rounded-xl border-2 px-1 py-2 text-sm sm:text-base font-bold transition ${course.id === c.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                      className={`min-w-0 rounded-lg border-2 px-1 py-1 text-sm font-bold transition ${selected(course.id === c.id)}`}>
                       {c.label}
                     </button>
                   ))}
@@ -556,8 +631,8 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
             <div className="grid sm:grid-cols-2 gap-2">
               {course.eas.map((e) => (
                 <button key={e.ea} onClick={() => setMeta({ setId: sameTypeIn(e, set.type).id })}
-                  className={`rounded-xl border-2 p-3 text-left transition ${ea === e ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                  <span className="block font-bold">{e.ea} <span className="font-normal text-slate-500">· {e.files}</span></span>
+                  className={`rounded-xl border-2 px-3 py-2 text-left transition ${selected(ea === e)}`}>
+                  <span className="block text-sm font-bold">{e.ea} <span className="font-normal text-slate-500">· {e.files}</span></span>
                   <span className="block text-xs text-slate-500">{e.topics}</span>
                 </button>
               ))}
@@ -566,27 +641,27 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
           <Field label={t('actividad')}>
             <div className="grid sm:grid-cols-2 gap-2">
               {ea.activities.filter((a) => a.type !== 'grammar-focus').map((a) => (
-                <button key={a.id} onClick={() => setMeta({ setId: a.id })}
-                  className={`rounded-xl border-2 p-3 text-left transition ${set.id === a.id ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                  <span className="block font-bold">
+                <button key={a.id} onClick={() => setMeta({ setId: a.id })} title={t(`desc_${a.type.replace(/-/g, '_')}`)}
+                  className={`rounded-xl border-2 px-3 py-2 text-left transition ${selected(set.id === a.id)}`}>
+                  <span className="block text-sm font-bold">
                     {a.title} <span className="font-normal text-slate-500">· {t('nPreguntas', count(a))}</span>
                   </span>
                   {mine(a) && <MineBadge />}
-                  <span className="block text-xs text-slate-500">{t(`desc_${a.type.replace(/-/g, '_')}`)}</span>
+                  <span className="block text-xs text-slate-500 line-clamp-2">{t(`desc_${a.type.replace(/-/g, '_')}`)}</span>
                 </button>
               ))}
             </div>
             {/* Los Grammar Focus pueden ser muchos (el intensivo junta dos cursos): van como lista compacta de temas. */}
             {focusList.length > 0 && (
-              <div className={`mt-2 rounded-xl border-2 p-3 transition ${set.type === 'grammar-focus' ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200'}`}>
-                <p className="font-bold">
+              <div className={`mt-2 rounded-xl border-2 px-3 py-2 transition ${set.type === 'grammar-focus' ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200'}`}>
+                <p className="text-sm font-bold">
                   {ACTIVITY_TYPES['grammar-focus'].name}
                   <span className="font-normal text-slate-500">{t('unContenido', focusList[0].questions.length)}</span>
                 </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {focusList.map((a) => (
                     <button key={a.id} onClick={() => setMeta({ setId: a.id })}
-                      className={`rounded-full border px-3 py-1 text-sm font-bold transition ${set.id === a.id ? 'bg-[#0F6FD6] border-[#0F6FD6] text-white' : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'}`}>
+                      className={`rounded-full border px-2.5 py-0.5 text-sm font-bold transition ${set.id === a.id ? 'bg-[#0F6FD6] border-[#0F6FD6] text-white' : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'}`}>
                       {a.topic}{mine(a) && ' ✏️'}
                     </button>
                   ))}
@@ -603,69 +678,9 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
               {t('editarActividad', set.topic ?? set.title, mine(set))}
             </button>
           </Field>
-          {set.practice && (
-            <Field label={t('preguntaPracticaInicio')}>
-              <Segmented value={meta.practice !== false} onChange={(practice) => setMeta({ practice })}
-                options={[[true, t('si')], [false, t('no')]]} />
-            </Field>
-          )}
-          {(set.type === 'answer-builder' || set.mechanic === 'builder') && (
-            <Field label={t('sujetoYVerbo')}>
-              <Segmented value={meta.mode} onChange={(mode) => setMeta({ mode })}
-                options={[['select', t('elegirLista')], ['write', t('escribirlos')]]} />
-            </Field>
-          )}
-          <Field label={t('ordenPreguntas')}>
-            <Segmented value={meta.shuffle === true} onChange={(shuffle) => {
-              setMeta({ shuffle })
-              try { localStorage.setItem(MEZCLAR_KEY, shuffle ? '1' : '0') } catch { /* modo privado */ }
-            }} options={[[false, t('enOrden')], [true, t('mezcladas')]]} />
-          </Field>
-          <Field label={t('modoJuego')}>
-            <Segmented value={teamMode ? 'teams' : 'solo'} onChange={setTeamMode}
-              options={[['solo', t('individual')], ['teams', t('equipos')]]} />
-          </Field>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <Field label={t('tiempoLectura')}>
-              <Segmented value={meta.readSec} onChange={(readSec) => setMeta({ readSec })}
-                options={[[5, '5 s'], [8, '8 s'], [12, '12 s']]} />
-            </Field>
-            <Field label={t('tiempoResponder')}>
-              <Segmented value={meta.answerSec} onChange={(answerSec) => setMeta({ answerSec })}
-                options={[[20, '20 s'], [30, '30 s'], [45, '45 s'], [60, '60 s']]} />
-            </Field>
-          </div>
         </div>
 
         {teamMode && <TeamsPanel store={store} base={base} meta={meta} teams={teams} players={players} online={online} onKick={onKick} />}
-        <div className={`rounded-3xl bg-white border border-slate-200 p-5 flex-1 ${teamMode ? 'hidden' : ''}`}>
-          <p className="font-bold mb-3">{t('alumnosN', list.length)}</p>
-          {list.length === 0 && <p className="text-slate-400">{t('esperandoUnan')}</p>}
-          <ul className="flex flex-wrap gap-2">
-            {list.map(([id, p]) => (
-              <li key={id}
-                className={`group flex items-center gap-1 rounded-full pl-3 pr-1 py-1 font-bold border ${online[id] === false ? 'text-slate-400 border-dashed border-slate-300' : 'bg-slate-100 border-slate-200'}`}>
-                {p.name}
-                <button onClick={() => onKick(id)} title={t('expulsar')}
-                  className="w-6 h-6 rounded-full text-slate-400 hover:bg-rose-100 hover:text-rose-700">×</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {!setReady && (
-          <p className="text-center text-sm font-bold text-amber-700">
-            {user ? t('cargandoActividad') : t('iniciaSesionActividad')}
-          </p>
-        )}
-        {onLastReport && (
-          <button onClick={onLastReport} className="self-center text-sm font-bold text-[#0F6FD6] hover:underline">
-            {t('verUltimoResumen')}
-          </button>
-        )}
-        <Button className="text-xl py-4" disabled={list.length === 0 || !setReady} onClick={onStart}>
-          {t('comenzar')}
-        </Button>
       </section>
     </div>
   )
@@ -857,8 +872,14 @@ function ActivityEditor({ store, user, editing, library, customIndex, current, o
   )
 }
 
-function QuestionImage({ src, className = '' }) {
-  return <img src={src} alt="" className={`mx-auto max-w-full rounded-2xl shadow-md object-contain bg-white ${className}`} />
+/* Ocupa todo el alto libre de la columna (flex-1) sin deformarse ni pasar de
+   su tamaño real. `min` = lo que se le respeta si falta espacio. */
+function QuestionImage({ src, min = 'min-h-[22vh]' }) {
+  return (
+    <div className={`flex-1 ${min} flex items-center justify-center`}>
+      <img src={src} alt="" className="max-h-full max-w-full rounded-2xl shadow-md object-contain bg-white" />
+    </div>
+  )
 }
 
 /* En pleno juego el QR queda chico en una esquina, por si llega alguien tarde;
@@ -1073,6 +1094,15 @@ function SoundControl({ className = '' }) {
   )
 }
 
+function SettingRow({ label, children }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2">
+      <p className="text-sm font-bold text-slate-500 leading-tight">{label}</p>
+      <div className="shrink-0">{children}</div>
+    </div>
+  )
+}
+
 function Field({ label, children }) {
   return (
     <div>
@@ -1087,7 +1117,7 @@ function Segmented({ value, onChange, options }) {
     <div className="inline-flex flex-wrap rounded-xl bg-slate-100 p-1 gap-1">
       {options.map(([v, label]) => (
         <button key={v} onClick={() => onChange(v)}
-          className={`rounded-lg px-3 py-1.5 text-sm font-bold transition ${value === v ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
+          className={`rounded-lg px-2.5 py-1 text-sm font-bold transition ${value === v ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
           {label}
         </button>
       ))}
@@ -1107,8 +1137,8 @@ function Reveal({ state, isLast, ranking, image, onNext }) {
     wh: t(`wh_${solution.wh}`),
   }
   return (
-    <section className="flex flex-col gap-8 pt-4">
-      {image && <QuestionImage src={image} className="max-h-[22vh]" />}
+    <section className={`flex-1 min-h-0 flex flex-col ${image ? 'gap-4' : 'gap-8 justify-center'}`}>
+      {image && <QuestionImage src={image} min="min-h-[16vh]" />}
       <Prompt text={state.question.prompt} className="text-center text-4xl md:text-5xl" />
       <div className="grid md:grid-cols-3 gap-4">
         {PART_KEYS.map((k) => (
@@ -1175,7 +1205,8 @@ function BuilderOptions({ question, mode }) {
   )
 }
 
-function ChoiceTiles({ options, answer, votes }) {
+/* `compact`: con imagen, alternativas más bajas para dejarle alto a la foto. */
+function ChoiceTiles({ options, answer, votes, compact = false }) {
   const revealed = answer != null
   const total = votes ? votes.reduce((a, b) => a + b, 0) : 0
   return (
@@ -1185,7 +1216,7 @@ function ChoiceTiles({ options, answer, votes }) {
         const right = o === answer
         return (
           <div key={o}
-            className={`relative overflow-hidden rounded-2xl px-5 py-4 flex items-center gap-4 text-white text-2xl md:text-3xl font-bold transition ${st.solid} ${revealed && !right ? 'opacity-35' : ''} ${revealed && right ? 'ring-8 ring-green-300' : ''}`}>
+            className={`relative overflow-hidden rounded-2xl px-5 ${compact ? 'py-2.5' : 'py-4'} flex items-center gap-4 text-white text-2xl md:text-3xl font-bold transition ${st.solid} ${revealed && !right ? 'opacity-35' : ''} ${revealed && right ? 'ring-8 ring-green-300' : ''}`}>
             <ChoiceLetter style={st} className="w-11 h-11 text-2xl" />
             <span className="flex-1">{o}</span>
             {revealed && right && <span className="text-3xl">✓</span>}
@@ -1205,10 +1236,10 @@ function ChoiceReveal({ state, isLast, ranking, image, onNext }) {
   const { solution, stats } = state
   const pct = stats.answered ? Math.round((stats.correct / stats.answered) * 100) : 0
   return (
-    <section className="flex flex-col gap-8 pt-4">
-      {image && <QuestionImage src={image} className="max-h-[22vh]" />}
+    <section className={`flex-1 min-h-0 flex flex-col ${image ? 'gap-4' : 'gap-8 justify-center'}`}>
+      {image && <QuestionImage src={image} min="min-h-[16vh]" />}
       <Prompt text={state.question.prompt} highlightWh={false} className="text-center text-4xl md:text-5xl" />
-      <ChoiceTiles options={state.question.options} answer={solution.answer} votes={stats.votes} />
+      <ChoiceTiles options={state.question.options} answer={solution.answer} votes={stats.votes} compact={Boolean(image)} />
       <p className="text-center text-2xl text-slate-600">
         <b className="text-slate-900 text-4xl font-black tabular-nums">{pct}%</b>{t('correctoRespuestas', stats.answered)}
       </p>
