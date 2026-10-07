@@ -386,7 +386,8 @@ function HostRoom({ store, pin, tema }) {
   const ranking = individualRanking(players, scores)
   const teamRank = teamMode ? teamRanking(teams, players, scores) : null
   /* Pregunta y revelar caben en la ventana, sin bajar: la página mide lo mismo
-     que la pantalla y la imagen se queda con el espacio que sobra. */
+     que la pantalla y la imagen se queda con el espacio que sobra. Margen de
+     lg:px-28 a los lados: ahí vive el QR chico de la esquina (JoinCorner). */
   const fit = ['reading', 'answering', 'reveal'].includes(state.phase)
 
   return (
@@ -412,7 +413,7 @@ function HostRoom({ store, pin, tema }) {
       </header>
       {inGame && state.phase !== 'end' && <div className="relative"><JoinCorner pin={pin} /></div>}
 
-      <main className={`flex-1 w-full mx-auto ${fit ? 'min-h-0 overflow-y-auto max-w-[110rem] px-6 py-4 flex flex-col' : 'max-w-6xl p-6'}`}>
+      <main className={`flex-1 w-full mx-auto ${fit ? 'min-h-0 overflow-y-auto max-w-[110rem] px-6 lg:px-28 py-4 flex flex-col' : 'max-w-6xl p-6'}`}>
         {state.phase === 'lobby' && editing && user && (
           <ActivityEditor store={store} user={user} editing={editing} library={library} customIndex={customIndex}
             current={set} onSelect={(setId) => store.update(`${base}/meta`, { setId })} onClose={() => setEditing(null)} />
@@ -472,7 +473,7 @@ function HostRoom({ store, pin, tema }) {
                 y al responder cede lo justo para que entren las alternativas. */}
             {current?.image ? <QuestionImage src={current.image} /> : <div className="flex-1" />}
             <Prompt text={state.question.prompt} highlightWh={state.question.kind !== 'choice'}
-              className={`text-center ${current?.image ? 'text-4xl lg:text-5xl' : 'text-5xl md:text-7xl'}`} />
+              className={`text-center ${current?.image ? 'text-4xl lg:text-5xl' : 'text-4xl lg:text-6xl'}`} />
             <TimerBar
               start={state.startedAt}
               ms={(state.phase === 'reading' ? meta.readSec : meta.answerSec) * 1000}
@@ -904,11 +905,10 @@ function ActivityEditor({ store, user, editing, library, customIndex, current, o
 /* Pregunta con imagen en pantalla ancha: la imagen a la izquierda con TODO el
    alto de la ventana, y la pregunta con sus alternativas a la derecha. En una
    pantalla de notebook (ancha y baja) apilarlas dejaba la foto en ~300 px de
-   alto con los costados vacíos. En pantallas angostas se apila igual.
-   (pl-20: el QR chico de la esquina no tapa la imagen.) */
+   alto con los costados vacíos. En pantallas angostas se apila igual. */
 function PictureLayout({ src, children }) {
   return (
-    <section className="flex-1 min-h-0 flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,8fr)_minmax(0,5fr)] lg:gap-8 lg:pl-20">
+    <section className="flex-1 min-h-0 flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,8fr)_minmax(0,5fr)] lg:gap-8">
       <div className="flex-1 min-h-[30vh] lg:min-h-0 flex items-center justify-center">
         <img src={src} alt="" className="max-h-full max-w-full rounded-2xl shadow-md object-contain bg-white" />
       </div>
@@ -1262,7 +1262,7 @@ function ChoiceTiles({ options, answer, votes, compact = false, stacked = false 
         const right = o === answer
         return (
           <div key={o}
-            className={`relative overflow-hidden rounded-2xl px-5 ${compact ? 'py-2.5' : 'py-4'} flex items-center gap-4 text-white text-2xl md:text-3xl font-bold transition ${st.solid} ${revealed && !right ? 'opacity-35' : ''} ${revealed && right ? 'ring-8 ring-green-300' : ''}`}>
+            className={`relative overflow-hidden rounded-2xl px-5 ${compact ? 'py-2.5' : 'py-3.5'} flex items-center gap-4 text-white text-2xl lg:text-3xl font-bold transition ${st.solid} ${revealed && !right ? 'opacity-35' : ''} ${revealed && right ? 'ring-8 ring-green-300' : ''}`}>
             <ChoiceLetter style={st} className="w-11 h-11 text-2xl" />
             <span className="flex-1">{o}</span>
             {revealed && right && <span className="text-3xl">✓</span>}
@@ -1367,9 +1367,9 @@ function celebrate() {
    (amber-900, slate-700, orange-900) y no con la clase: el modo oscuro aclara
    esas clases, y sobre el metal quedarían ilegibles. */
 const PLACES = {
-  1: { medal: '🥇', pedestal: 'h-56 bg-gradient-to-b from-yellow-300 to-amber-500 text-[#78350f]', width: 'w-60' },
-  2: { medal: '🥈', pedestal: 'h-40 bg-gradient-to-b from-slate-200 to-slate-400 text-[#334155]', width: 'w-44' },
-  3: { medal: '🥉', pedestal: 'h-28 bg-gradient-to-b from-orange-300 to-orange-500 text-[#7c2d12]', width: 'w-44' },
+  1: { medal: '🥇', pedestal: 'h-[clamp(6rem,20vh,14rem)] bg-gradient-to-b from-yellow-300 to-amber-500 text-[#78350f]', width: 'w-60' },
+  2: { medal: '🥈', pedestal: 'h-[clamp(4.5rem,14vh,10rem)] bg-gradient-to-b from-slate-200 to-slate-400 text-[#334155]', width: 'w-44' },
+  3: { medal: '🥉', pedestal: 'h-[clamp(3rem,9vh,7rem)] bg-gradient-to-b from-orange-300 to-orange-500 text-[#7c2d12]', width: 'w-44' },
 }
 
 function CountUp({ to, ms = 1200 }) {
@@ -1387,6 +1387,8 @@ function CountUp({ to, ms = 1200 }) {
   }, [to, ms])
   return value
 }
+
+const PODIUM_LIST = 15 // el podio lista hasta el 15.º; los demás, en el resumen del curso
 
 function Podium({ ranking, mvp, stage, onAgain, onReport }) {
   const t = useT()
@@ -1409,9 +1411,9 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
       <div className={`flex flex-col items-center justify-end gap-2 ${style.width}`}>
         {p && shown[place] && (
           <div className={`flex flex-col items-center gap-1 w-full ${champion ? 'animate-champion' : 'animate-rise'}`}>
-            {champion && <span className="text-5xl -mb-2">👑</span>}
-            <span className={champion ? 'text-7xl' : 'text-5xl'}>{style.medal}</span>
-            <span className={`font-black text-center truncate w-full ${champion ? 'text-4xl' : 'text-2xl'}`}>{p.name}</span>
+            {champion && <span className="text-4xl -mb-2">👑</span>}
+            <span className={champion ? 'text-6xl' : 'text-4xl'}>{style.medal}</span>
+            <span className={`font-black text-center truncate w-full ${champion ? 'text-3xl' : 'text-2xl'}`}>{p.name}</span>
             {/* Los puntos llegan al final, todos a la vez, para comparar las
                 distancias sin adelantar quién ganó. El espacio queda reservado. */}
             <span className={`font-bold tabular-nums text-slate-600 ${champion ? 'text-2xl' : 'text-lg'}
@@ -1422,7 +1424,7 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
         )}
         <div className={`w-full rounded-t-3xl grid place-items-center font-black shadow-lg ${style.pedestal}
           ${champion && shown[1] ? 'animate-glow' : ''}`}>
-          <span className={`text-6xl ${waiting ? 'animate-pulse opacity-60' : ''}`}>
+          <span className={`text-5xl ${waiting ? 'animate-pulse opacity-60' : ''}`}>
             {waiting ? '?' : place}
           </span>
         </div>
@@ -1431,32 +1433,39 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
   }
 
   return (
-    <section className="flex flex-col items-center gap-8 pt-2">
-      <h2 className="text-4xl font-black">
+    <section className="flex flex-col items-center gap-5">
+      <h2 className="text-3xl font-black">
         {stage.first ? t('yElGanadorFiesta') : stage.drumroll ? t('yElGanador') : t('resultadosFinales')}
       </h2>
-      <div className="flex items-end gap-3 min-h-[26rem]">
+      <div className="flex items-end gap-3 min-h-[clamp(14rem,40vh,26rem)]">
         {column(2)}
         {column(1)}
         {column(3)}
       </div>
       {stage.rest && ranking.length > 3 && (
-        <ol start={4} className="w-full max-w-xl flex flex-col gap-1 animate-rise">
-          {ranking.slice(3).map((p, i) => (
-            <li key={p.id} className="flex gap-4 rounded-xl bg-white border border-slate-200 px-4 py-2">
+        /* Del 4.º al 15.º en columnas; el resto, en el resumen del curso: con 30
+           alumnos la lista completa empujaba el podio fuera de la pantalla. */
+        <ol start={4} className="w-full max-w-5xl grid sm:grid-cols-2 lg:grid-cols-4 gap-1.5 animate-rise">
+          {ranking.slice(3, PODIUM_LIST).map((p, i) => (
+            <li key={p.id} className="flex gap-3 rounded-xl bg-white border border-slate-200 px-3 py-1.5 text-sm">
               <span className="w-6 text-slate-400 font-bold">{i + 4}</span>
               <span className="flex-1 font-bold truncate">{p.name}</span>
               <span className="tabular-nums font-bold">{p.total}</span>
             </li>
           ))}
+          {ranking.length > PODIUM_LIST && (
+            <li className="flex items-center justify-center rounded-xl border border-dashed border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-500">
+              {t('yNMas', ranking.length - PODIUM_LIST)}
+            </li>
+          )}
         </ol>
       )}
       {stage.rest && mvp && (
-        <div className="flex items-center gap-4 rounded-3xl bg-gradient-to-r from-amber-100 to-yellow-50 border-2 border-amber-300 px-6 py-3 animate-rise">
-          <span className="text-5xl">⭐</span>
+        <div className="flex items-center gap-4 rounded-3xl bg-gradient-to-r from-amber-100 to-yellow-50 border-2 border-amber-300 px-5 py-2 animate-rise">
+          <span className="text-4xl">⭐</span>
           <div>
             <p className="text-sm font-black uppercase tracking-widest text-amber-700">{t('mvpMejor')}</p>
-            <p className="text-3xl font-black">{mvp.name} <span className="text-xl font-bold text-slate-600 tabular-nums">· {mvp.total} {t('ptsCorto')}</span></p>
+            <p className="text-2xl font-black">{mvp.name} <span className="text-lg font-bold text-slate-600 tabular-nums">· {mvp.total} {t('ptsCorto')}</span></p>
           </div>
         </div>
       )}

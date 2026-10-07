@@ -283,6 +283,7 @@ export const TEXTOS = {
   alumnosEscriben: { es: '✍️ Los alumnos lo escriben', en: '✍️ Students write it' },
   puntosPractica: { es: 'Puntos de práctica: no cuentan. ¡El juego de verdad parte en 0!', en: 'Practice points — they don’t count. The real game starts at 0!' },
   ptsCorto: { es: 'pts', en: 'pts' },
+  yNMas: { es: (n) => `+ ${n} más · ver resumen`, en: (n) => `+ ${n} more · see summary` },
   yElGanador: { es: 'Y el ganador es…', en: 'And the winner is…' },
   yElGanadorFiesta: { es: '🎉 Y el ganador es… 🎉', en: '🎉 And the winner is… 🎉' },
   resultadosFinales: { es: 'Resultados finales', en: 'Final results' },
