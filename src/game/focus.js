@@ -1,6 +1,6 @@
 /* Grammar Focus: UN contenido KC por actividad, trabajado con distintos formatos
    de pregunta (completar, elegir la oración correcta, transformar, doble hueco,
-   definición). Cortas a propósito: 6 preguntas, 3–4 alternativas cada una.
+   definición). Cortas a propósito: 6 preguntas (hasta 15 si el tema lo pide), 3–4 alternativas.
 
    Por ahora, los cursos del semestre: Básico II, Elemental I, Intermedio I e
    Intermedio Intensivo. El intensivo reutiliza los de Intermedio I en su EA1
@@ -271,12 +271,25 @@ const MAKE_OR_DO = focus('Make or do?',
 
 const INTERMEDIO_INT_EA2 = [
   focus('Gerunds & infinitives',
-    mc('I want ___ a new language.', 'to learn', 'learning', 'learn', 'learned'),
-    mc('He enjoys ___ in the mountains.', 'hiking', 'to hike', 'hike', 'hiked'),
-    mc('___ is good for your health.', 'Swimming', 'Swim', 'To swimming', 'Swims'),
-    mc('We went to the store ___ some milk.', 'to buy', 'for buy', 'buying', 'buy'),
-    mc('She’s very good at ___.', 'drawing', 'draw', 'to draw', 'draws'),
-    mc('I hope ___ you soon.', 'to see', 'seeing', 'see', 'saw'),
+    // Solo verbo + verbo. Like / love / hate también aceptan "to" en inglés
+    // americano: por eso love y hate no llevan "to + verbo" como distractor.
+    // Orden irregular a propósito: sin alternar infinitivo / gerundio, para que
+    // jugado "en orden" no se adivine por patrón.
+    mc('I want ___ a new phone.', 'to buy', 'buying', 'buy', 'bought'),
+    mc('You need ___ more water.', 'to drink', 'drinking', 'drink', 'drank'),
+    mc('Carmen enjoys ___ in the rain.', 'walking', 'to walk', 'walk', 'walked'),
+    mc('I’d like ___ Japan one day.', 'to visit', 'visiting', 'visit', 'visited'),
+    mc('Have you finished ___ the book?', 'reading', 'to read', 'read', 'reads'),
+    mc('Do you mind ___ the window?', 'opening', 'to open', 'open', 'opened'),
+    mc('Laura decided ___ her job last month.', 'to leave', 'leaving', 'leave', 'left'),
+    mc('Kevin spends hours ___ video games.', 'playing', 'to play', 'play', 'played'),
+    mc('We hope ___ you soon.', 'to see', 'seeing', 'see', 'saw'),
+    mc('Don’t forget ___ the door!', 'to lock', 'locking', 'lock', 'locked'),
+    mc('My grandma loves ___ cakes for the family.', 'baking', 'bake', 'baked', 'bakes'),
+    mc('I don’t feel like ___ tonight.', 'cooking', 'to cook', 'cook', 'cooked'),
+    mc('My son is learning ___.', 'to swim', 'swimming', 'swim', 'swam'),
+    mc('Lucas hates ___ up early.', 'getting', 'get', 'got', 'gets'),
+    mc('Tom promised ___ me with my homework.', 'to help', 'helping', 'help', 'helped'),
   ),
   focus('First conditional',
     mc('If you study, you ___ the exam.', '’ll pass', 'would pass', 'passed', 'passing'),

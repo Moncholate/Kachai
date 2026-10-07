@@ -107,11 +107,11 @@ describe('biblioteca', () => {
       expect(s.questions.length).toBeLessThanOrEqual(15)
     }
   })
-  it('Grammar Focus: cortas (6 a 8) y en los cursos del semestre', () => {
+  it('Grammar Focus: cortas (6 a 15) y en los cursos del semestre', () => {
     const focus = SETS.filter((x) => x.type === 'grammar-focus')
     for (const s of focus) {
       expect(s.questions.length).toBeGreaterThanOrEqual(6)
-      expect(s.questions.length).toBeLessThanOrEqual(8)
+      expect(s.questions.length).toBeLessThanOrEqual(15)
       expect(s.title).toBe(`Grammar Focus · ${s.topic}`)
     }
     for (const id of ['basico2', 'elemental1', 'intermedio1', 'intermedioInt']) {
