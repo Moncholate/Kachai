@@ -15,14 +15,18 @@ const TRACKS = {
   answering3: { file: 'answering-3.ogg', loop: true, loopStart: 4.2658 }, // Village Quest
   answering4: { file: 'answering-4.ogg', loop: true, loopStart: 77.874 }, // Ticking Pulse (la intro ya dura más que una pregunta)
   answering5: { file: 'answering-5.ogg', loop: true, loopStart: 14.803 }, // Pendulum's Last Tick
+  answering6: { file: 'answering-6.ogg', loop: true, loopStart: 4.2657 }, // Pendulum Kingdom
   final: { file: 'final.ogg', loop: true, loopStart: 26.4896 }, // Final Question: solo en la última pregunta
-  podium: { file: 'podium.ogg', loop: false },
+  /* La fanfarria del campeón es música (se detiene con fundido al salir del podio),
+     pero suena como efecto: canal de efectos, sin fundido de entrada (se comía el
+     golpe inicial) y +1,2 dB, para que no quede más baja que la del 2.º y el 3.º. */
+  podium: { file: 'podium.ogg', loop: false, asEffect: true, level: 1.15 },
 }
 
 /* Temas para responder, en rotación: cada pregunta cambia de tema y nunca
    repite el de la anterior. Todos a 116 BPM y al mismo volumen (−15 LUFS),
    cortados en loop con tools/make-loop.mjs. */
-export const ANSWERING_TRACKS = ['answering', 'answering2', 'answering3', 'answering4', 'answering5']
+export const ANSWERING_TRACKS = ['answering', 'answering2', 'answering3', 'answering4', 'answering5', 'answering6']
 export const answeringTrack = (round, qIndex) =>
   ANSWERING_TRACKS[(((round || 0) + qIndex + 1) % ANSWERING_TRACKS.length + ANSWERING_TRACKS.length) % ANSWERING_TRACKS.length]
 /* Efectos de Suno, cortos y de una sola vez: van directo al master, sin fundidos. */
@@ -125,9 +129,13 @@ function createSoundEngine() {
     src.loopStart = TRACKS[name].loopStart ?? 0 // loopEnd 0 = fin del archivo
     const gain = ctx.createGain()
     const t = ctx.currentTime
-    gain.gain.setValueAtTime(0, t)
-    gain.gain.linearRampToValueAtTime(1, t + FADE_IN)
-    src.connect(gain).connect(music)
+    const { asEffect, level = 1 } = TRACKS[name]
+    if (asEffect) gain.gain.setValueAtTime(level, t)
+    else {
+      gain.gain.setValueAtTime(0, t)
+      gain.gain.linearRampToValueAtTime(level, t + FADE_IN)
+    }
+    src.connect(gain).connect(asEffect ? master : music)
     src.start()
     const track = { name, src, gain }
     src.onended = () => { if (current === track) current = null }
