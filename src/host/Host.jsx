@@ -3,6 +3,7 @@ import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
 import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } from '../game/sets.js'
+import { cleanOldRooms, forgetRoom, isOld, noteRoom, removeIfSame } from '../game/cleanup.js'
 import { DOUBLE, STREAK_MIN, answerProgress, buildPublicQuestion, playOrder, playedQuestions, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, CHOICE_STYLES, Center, ChoiceLetter, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, StreakName, TimerBar, choiceCols } from '../ui.jsx'
 import { answeringTrack, getSound } from './sound.js'
@@ -46,9 +47,16 @@ const mezclarGuardado = () => { try { return localStorage.getItem(MEZCLAR_KEY) =
 /* Margen tras el cero para que alcance a llegar una respuesta enviada en el último segundo. */
 const GRACE_MS = 800
 
+/* Al recargar se vuelve a la misma sala, salvo que tenga más de 12 horas: es
+   la de una clase anterior que quedó abierta, y se borra (game/cleanup.js). */
 async function openRoom(store) {
   const saved = savedPin.get()
-  if (saved && (await store.get(`rooms/${saved}/meta`))) return saved
+  const savedMeta = saved ? await store.get(`rooms/${saved}/meta`) : null
+  if (savedMeta && !isOld(savedMeta.createdAt, store.now())) {
+    cleanOldRooms(store, { current: saved })
+    return saved
+  }
+  if (savedMeta) await removeIfSame(store, saved, savedMeta.createdAt).catch(() => {})
   let pin
   do pin = String(100000 + Math.floor(Math.random() * 900000))
   while (await store.get(`rooms/${pin}/meta`))
@@ -57,6 +65,8 @@ async function openRoom(store) {
     state: { phase: 'lobby', round: 0 },
   })
   savedPin.set(pin)
+  noteRoom(store, pin, (await store.get(`rooms/${pin}/meta`))?.createdAt)
+  cleanOldRooms(store, { current: pin })
   return pin
 }
 
@@ -102,6 +112,14 @@ function HostRoom({ store, pin, tema }) {
      disponible en el lobby después de "Jugar otra vez" (que borra los puntajes). */
   const [reportOpen, setReportOpen] = useState(false)
   const [lastReport, setLastReport] = useState(null)
+
+  /* Con sesión, la sala queda anotada también en la cuenta, y de paso se
+     borran las viejas que otros computadores dejaron abiertas. */
+  useEffect(() => {
+    if (!user || typeof meta?.createdAt !== 'number') return
+    noteRoom(store, pin, meta.createdAt, user.uid)
+    cleanOldRooms(store, { current: pin, uid: user.uid })
+  }, [user?.uid, meta?.createdAt])
 
   /* Actividades propias: el índice (liviano) siempre; las preguntas, que pueden
      traer imágenes, solo de la elegida. */
@@ -201,6 +219,7 @@ function HostRoom({ store, pin, tema }) {
   const closeRoom = async () => {
     if (!confirm(t('confirmarCerrar'))) return
     await store.remove(base)
+    forgetRoom(store, pin, user?.uid)
     savedPin.set(null)
     location.hash = ''
   }
