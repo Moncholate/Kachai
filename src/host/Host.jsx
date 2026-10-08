@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
+import { QrAmpliable } from './QrAmpliable.jsx'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
 import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } from '../game/sets.js'
@@ -555,7 +556,7 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
   const joinUrl = `${location.origin}${location.pathname}#/play?pin=${pin}`
   const [qr, setQr] = useState('')
   useEffect(() => {
-    QRCode.toDataURL(joinUrl, { margin: 1, width: 360 }).then(setQr)
+    QRCode.toDataURL(joinUrl, { margin: 1, width: 720 }).then(setQr)
   }, [joinUrl])
 
   const setMeta = (patch) => store.update(`${base}/meta`, patch)
@@ -584,6 +585,11 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
     </ul>
   )
   const selected = (on) => (on ? 'border-[#0F6FD6] bg-blue-50' : 'border-slate-200 hover:border-slate-300')
+  /* Otro curso, en la misma experiencia y el mismo tipo de actividad. */
+  const irACurso = (level, label) => {
+    const c = COURSES.find((x) => x.level === level && x.label === label) || COURSES.find((x) => x.level === level)
+    setMeta({ setId: sameTypeIn(c.eas[Math.min(eaIndex, c.eas.length - 1)], set.type).id })
+  }
 
   /* Izquierda, fija al bajar: lo que mira la sala (QR y PIN), quiénes entraron
      y el botón de empezar. Derecha: qué se juega y cómo. */
@@ -592,7 +598,13 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
       <aside className="flex flex-col gap-4 lg:sticky lg:top-4">
         <section className="rounded-3xl bg-white border border-slate-200 p-5 flex flex-col items-center text-center gap-1.5">
           <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">{t('unirseJuego')}</p>
-          {qr && <img src={qr} alt={t('qrUnirse')} className="w-44 h-44" />}
+          {/* Chico y con ⤢: tocándolo viaja al centro, grande, para escanearlo
+              desde cualquier puesto (al costado costaba). */}
+          {qr && (
+            <QrAmpliable src={qr} alt={t('qrUnirse')} etiqueta={t('agrandarCodigo')} claseQr="w-28 h-28" className="my-1"
+              titulo={t('unirseJuego')} cerrarTexto={`${joinUrl.replace(/^https?:\/\//, '')} · ${t('tocaCerrar')}`}
+              pie={<p className="text-6xl font-black tracking-[.2em]">{pin}</p>} />
+          )}
           <p className="text-slate-500 break-all text-xs">{joinUrl.replace(/^https?:\/\//, '')}</p>
           <p className="text-slate-500 text-sm mt-1">{t('pinJuego')}</p>
           <p className="text-[2.75rem] leading-none font-black tracking-[.15em] text-slate-900">{pin}</p>
@@ -666,18 +678,13 @@ function Lobby({ store, base, pin, meta, teams, players, online, set, setReady, 
             }} />
           </div>
           <Field label={t('curso')}>
-            <div className="grid grid-cols-[auto_repeat(3,minmax(0,1fr))] gap-1.5 items-center">
-              {LEVELS.map((level) => (
-                <Fragment key={level}>
-                  <span className="text-sm font-bold text-slate-500 pr-2">{level}</span>
-                  {COURSES.filter((c) => c.level === level).map((c) => (
-                    <button key={c.id} onClick={() => setMeta({ setId: sameTypeIn(c.eas[eaIndex], set.type).id })}
-                      className={`min-w-0 rounded-lg border-2 px-1 py-1 text-sm font-bold transition ${selected(course.id === c.id)}`}>
-                      {c.label}
-                    </button>
-                  ))}
-                </Fragment>
-              ))}
+            {/* Nivel y tramo por separado, en una línea (8-oct-2026: la grilla de
+                3 × 3 ocupaba demasiado). Al cambiar uno se conserva el otro. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Segmented value={course.level} onChange={(level) => irACurso(level, course.label)}
+                options={LEVELS.map((l) => [l, l])} />
+              <Segmented value={course.label} onChange={(label) => irACurso(course.level, label)}
+                options={COURSES.filter((c) => c.level === course.level).map((c) => [c.label, c.label])} />
             </div>
           </Field>
           <Field label={t('experiencia', course.book)}>
@@ -959,34 +966,17 @@ function JoinCorner({ pin }) {
   const t = useT()
   const joinUrl = `${location.origin}${location.pathname}#/play?pin=${pin}`
   const [qr, setQr] = useState('')
-  const [open, setOpen] = useState(false)
   useEffect(() => { QRCode.toDataURL(joinUrl, { margin: 1, width: 720 }).then(setQr) }, [joinUrl])
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e) => e.key === 'Escape' && setOpen(false)
-    addEventListener('keydown', onKey)
-    return () => removeEventListener('keydown', onKey)
-  }, [open])
   if (!qr) return null
-  if (open) {
-    return (
-      <div onClick={() => setOpen(false)} className="fixed inset-0 z-40 bg-slate-900/70 grid place-items-center p-6 cursor-zoom-out">
-        <div className="rounded-3xl bg-white p-8 flex flex-col items-center gap-3 text-center shadow-2xl">
-          <p className="text-slate-500 font-bold uppercase tracking-widest">{t('unirseJuego')}</p>
-          <img src={qr} alt={t('qrUnirse')} className="w-[min(60vh,80vw)] h-[min(60vh,80vw)]" />
-          <p className="text-6xl font-black tracking-[.2em]">{pin}</p>
-          <p className="text-slate-500 text-sm">{joinUrl.replace(/^https?:\/\//, '')} · {t('tocaCerrar')}</p>
-        </div>
-      </div>
-    )
-  }
   return (
-    <button onClick={() => setOpen(true)} title={t('agrandarCodigo')}
-      className="absolute top-3 left-3 z-30 flex flex-col items-center gap-0.5 rounded-xl bg-white/95 border border-slate-200 shadow-md p-1.5 hover:shadow-lg transition">
-      <img src={qr} alt="" className="w-16 h-16" />
-      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none mt-0.5">{t('unirseCorto')}</span>
-      <span className="text-sm font-black tracking-wider tabular-nums leading-tight">{pin}</span>
-    </button>
+    <div className="absolute top-3 left-3 z-30 rounded-xl bg-white/95 border border-slate-200 shadow-md p-1.5 hover:shadow-lg transition">
+      <QrAmpliable src={qr} alt={t('qrUnirse')} etiqueta={t('agrandarCodigo')} claseQr="w-16 h-16" insigniaChica
+        titulo={t('unirseJuego')} cerrarTexto={`${joinUrl.replace(/^https?:\/\//, '')} · ${t('tocaCerrar')}`}
+        pie={<p className="text-6xl font-black tracking-[.2em]">{pin}</p>}>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none mt-1.5">{t('unirseCorto')}</span>
+        <span className="text-sm font-black tracking-wider tabular-nums leading-tight">{pin}</span>
+      </QrAmpliable>
+    </div>
   )
 }
 
