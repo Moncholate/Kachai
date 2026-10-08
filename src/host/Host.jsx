@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { isOnline } from '../net/store.js'
 import { useNow, useStore, useUser, useValue } from '../net/hooks.js'
 import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } from '../game/sets.js'
-import { DOUBLE, STREAK_MIN, buildPublicQuestion, playOrder, playedQuestions, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
+import { DOUBLE, STREAK_MIN, answerProgress, buildPublicQuestion, playOrder, playedQuestions, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, CHOICE_STYLES, Center, ChoiceLetter, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, StreakName, TimerBar, choiceCols } from '../ui.jsx'
 import { answeringTrack, getSound } from './sound.js'
 import Editor, { blankQuestion } from './Editor.jsx'
@@ -120,7 +120,8 @@ function HostRoom({ store, pin, tema }) {
   const played = set ? playedQuestions(set.questions, state?.order) : []
   const questionAt = (i) => (i < 0 ? set.practice : played[i])
   const current = set && inGame ? questionAt(state.qIndex) : null
-  const activeIds = Object.keys(players).filter((id) => online[id] !== false)
+  const progress = answerProgress(players, online, answers)
+  const activeIds = progress.active
   const teamMode = meta?.teamMode === 'teams'
   /* Los nombres de equipo en el idioma de la sala (si el profesor no los cambió):
      así salen traducidos en el ranking, los duelos y el podio. */
@@ -140,7 +141,7 @@ function HostRoom({ store, pin, tema }) {
     }
     return patch
   }
-  const answeredCount = Object.keys(answers).filter((id) => players[id]).length
+  const answeredCount = progress.answered
 
   /* La hora de inicio de cada fase la fija el proyector con store.now() (su reloj
      ya alineado al del servidor), NO con store.stamp(). Con stamp, Firebase
@@ -271,8 +272,7 @@ function HostRoom({ store, pin, tema }) {
       startAnswering()
     } else if (state.phase === 'answering') {
       const timeUp = now >= state.startedAt + meta.answerSec * 1000 + GRACE_MS
-      const everyone = activeIds.length > 0 && activeIds.every((id) => answers[id])
-      if (timeUp || everyone) {
+      if (timeUp || progress.everyone) {
         fired.current = key
         reveal()
       }

@@ -46,15 +46,24 @@ export function createFirebaseStore(config) {
     now: () => Date.now() + offset,
     stamp: () => serverTimestamp(),
     /* Al reconectar (el celular se bloqueó, cambió de WiFi a datos) se vuelve a
-       marcar en línea y se re-arma el aviso de desconexión. */
+       marcar en línea y se re-arma el aviso de desconexión.
+       MIRANDO O NO (8-oct-2026): con la pantalla bloqueada o en otra app, el
+       celular queda «fuera» al tiro, y vuelve apenas regresa a Kachai. Antes
+       seguía «conectado» hasta que Firebase notaba el corte (un minuto o más)
+       y el proyector lo esperaba para avanzar aunque nadie estuviera mirando. */
     presence(path) {
       const node = ref(db, path)
+      const mirando = () => typeof document === 'undefined' || document.visibilityState !== 'hidden'
+      let conectado = false
       const unsub = onValue(ref(db, '.info/connected'), async (s) => {
-        if (!s.val()) return
+        conectado = Boolean(s.val())
+        if (!conectado) return
         await onDisconnect(node).set(false)
-        set(node, true)
+        set(node, mirando())
       })
-      return () => { unsub(); onDisconnect(node).cancel() }
+      const alCambiar = () => { if (conectado) set(node, mirando()) }
+      document.addEventListener('visibilitychange', alCambiar)
+      return () => { unsub(); onDisconnect(node).cancel(); document.removeEventListener('visibilitychange', alCambiar) }
     },
   }
 }

@@ -169,3 +169,14 @@ export function splitWh(prompt) {
   const m = prompt.match(/^(how (many|much|often|long|far|old)|what time|what kind of|\w+)\b/i)
   return m ? [m[0], prompt.slice(m[0].length)] : ['', prompt]
 }
+
+/* ¿Cuántos respondieron? Lo usan el contador del proyector y el avance
+   automático, y TIENEN que contar lo mismo: antes el contador sumaba también
+   a los desconectados que alcanzaron a responder, y mostraba «24 / 24»
+   mientras el juego seguía esperando a un conectado que no había respondido
+   (8-oct-2026). Cuentan solo los conectados (online distinto de false). */
+export function answerProgress(players, online, answers) {
+  const active = Object.keys(players || {}).filter((id) => online?.[id] !== false)
+  const answered = active.filter((id) => answers?.[id]).length
+  return { active, answered, everyone: active.length > 0 && answered === active.length }
+}

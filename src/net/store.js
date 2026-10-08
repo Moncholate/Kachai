@@ -6,7 +6,8 @@ import { firebaseConfig } from './firebase-config.js'
      listen(path, cb)     → unsubscribe; cb(valor | null)
      now()                → hora estimada del servidor (ms)
      stamp()              → marca de tiempo que resuelve el SERVIDOR al escribir
-     presence(path)       → true mientras la pestaña esté conectada, false al cerrarla;
+     presence(path)       → true mientras la pestaña esté conectada y a la vista; false al
+                            cerrarla, bloquear el celular o pasar a otra app;
                             → cleanup (no escribe: la sala puede estar ya borrada)
      onUser(cb)           → unsubscribe; cb({ uid, name, photo } | null) con la sesión del docente
      signIn() · signOut() → iniciar / cerrar sesión con Google (solo el docente, para editar)

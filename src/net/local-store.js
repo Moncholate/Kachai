@@ -80,9 +80,12 @@ export function createLocalStore() {
     stamp: () => Date.now(),
     presence(path) {
       const off = () => this.set(path, false)
-      this.set(path, true)
+      /* Como en Firebase: con la pestaña oculta cuenta como fuera. */
+      const alCambiar = () => this.set(path, document.visibilityState !== 'hidden')
+      alCambiar()
       addEventListener('pagehide', off)
-      return () => removeEventListener('pagehide', off)
+      document.addEventListener('visibilitychange', alCambiar)
+      return () => { removeEventListener('pagehide', off); document.removeEventListener('visibilitychange', alCambiar) }
     },
   }
 }

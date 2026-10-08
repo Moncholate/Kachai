@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPublicQuestion, playOrder, playedQuestions, checkAnswer, historyEntry, historyKey, isChoice, nextStreak, normalize, reviewQuestion, scoreFor, solutionOf, splitWh, subjectAccept, UNISEX_NAMES, WH_TYPES } from './logic.js'
+import { answerProgress, buildPublicQuestion, playOrder, playedQuestions, checkAnswer, historyEntry, historyKey, isChoice, nextStreak, normalize, reviewQuestion, scoreFor, solutionOf, splitWh, subjectAccept, UNISEX_NAMES, WH_TYPES } from './logic.js'
 import { ACTIVITY_TYPES, COURSES, SETS, getSet, sameTypeIn } from './sets.js'
 
 const q = { prompt: 'Where did María work yesterday?', wh: 'place', example: 'She worked at the hospital.',
@@ -267,5 +267,30 @@ describe('imagen en el celular', () => {
     expect(uploaded.hasImage).toBe(true)
     expect(uploaded.image).toBeUndefined()
     expect(buildPublicQuestion(base).hasImage).toBeUndefined()
+  })
+})
+
+describe('cuántos respondieron', () => {
+  const players = { ana: {}, beto: {}, caro: {} }
+
+  it('el contador y el avance cuentan lo mismo: solo los conectados', () => {
+    // Ana respondió y bloqueó el celular; Beto está conectado y no responde.
+    const p = answerProgress(players, { ana: false, beto: true, caro: true }, { ana: {}, caro: {} })
+    expect(p.active).toEqual(['beto', 'caro'])
+    expect(p.answered).toBe(1)
+    expect(p.everyone).toBe(false)
+  })
+
+  it('cuando responden todos los conectados, avanza', () => {
+    const p = answerProgress(players, { ana: false }, { beto: {}, caro: {} })
+    expect([p.answered, p.active.length, p.everyone]).toEqual([2, 2, true])
+  })
+
+  it('sin nadie conectado no avanza solo (espera el tiempo)', () => {
+    expect(answerProgress(players, { ana: false, beto: false, caro: false }, {}).everyone).toBe(false)
+  })
+
+  it('una respuesta de alguien que ya no está en la sala no cuenta', () => {
+    expect(answerProgress({ ana: {} }, {}, { ana: {}, fantasma: {} }).answered).toBe(1)
   })
 })
