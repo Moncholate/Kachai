@@ -17,7 +17,7 @@ import { PODIUM_SOUNDS, podiumStage } from '../game/podium.js'
 import { BOARD_SIZE, DUEL_GAP, buildBoard, previousTotals } from '../game/duels.js'
 import {
   MAX_TEAMS, TEAM_MAX, TEAM_MIN, makeTeams, membersOf, mvpOf, presetOf, shuffleIntoTeams, smallestTeam,
-  suggestTeamCount, teamIdsOf, teamRanking,
+  streaksOf, suggestTeamCount, teamIdsOf, teamRanking,
 } from '../game/teams.js'
 import confetti from 'canvas-confetti'
 import { IDIOMA_POR_DEFECTO, ProveedorIdioma, SelectorIdioma, nombreEquipo, traducir, useT, valido } from '../i18n.jsx'
@@ -527,7 +527,11 @@ function HostRoom({ store, pin, tema }) {
             title={teamMode ? t('rankingEquipos') : t('ranking')}
             footnote={teamMode ? t('notaEquipos') : null}
             rows={teamMode
-              ? teamRank.map((tm) => ({ ...tm, tint: `${presetOf(tm.id).tint} ${presetOf(tm.id).border} border-2`, extra: <span className="text-base font-normal text-slate-500">· {tm.members.length}</span> }))
+              ? teamRank.map((tm) => ({
+                ...tm, tint: `${presetOf(tm.id).tint} ${presetOf(tm.id).border} border-2`,
+                extra: <span className="text-base font-normal text-slate-500">· {tm.members.length}</span>,
+                sub: <EnRacha miembros={streaksOf(tm.members, players, scores, STREAK_MIN)} />,
+              }))
               : ranking.map((p) => ({ ...p, extra: <StreakBadge streak={p.streak} className="text-base shrink-0" /> }))} />
         )}
 
@@ -1117,13 +1121,33 @@ function DoubleBanner({ text }) {
   )
 }
 
+/* En equipos, bajo el nombre del equipo: sus integrantes en racha, con el
+   mismo fuego que en individual. Quien recién llegó entra con animación: es
+   a quien anunció el sonido. */
+function EnRacha({ miembros }) {
+  if (!miembros.length) return null
+  return (
+    <span className="flex flex-wrap gap-x-4 gap-y-1 text-lg">
+      {miembros.map((m) => (
+        <span key={m.id} className={`inline-flex items-center gap-1 ${m.nueva ? 'animate-rise' : ''}`}>
+          <StreakName name={m.name} streak={m.streak} className="font-bold" />
+          <StreakBadge streak={m.streak} className="text-base" />
+        </span>
+      ))}
+    </span>
+  )
+}
+
 function BoardRow({ row, place }) {
   return (
     <div className={`flex items-center gap-4 rounded-2xl px-5 py-3 text-xl ${row.tint ?? 'bg-white border border-slate-200'}`}>
       <span className="w-8 font-black text-slate-400">{place}</span>
-      <span className="flex-1 min-w-0 flex items-center gap-2">
-        <StreakName name={row.name} streak={row.streak} className="font-bold truncate" />
-        {row.extra}
+      <span className="flex-1 min-w-0 flex flex-col gap-1">
+        <span className="flex items-center gap-2 min-w-0">
+          <StreakName name={row.name} streak={row.streak} className="font-bold truncate" />
+          {row.extra}
+        </span>
+        {row.sub}
       </span>
       {row.gain > 0 && <span className="text-green-600 font-bold">+{row.gain}</span>}
       <span className="w-24 text-right font-black tabular-nums">{row.total}</span>

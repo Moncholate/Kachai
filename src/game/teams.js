@@ -78,6 +78,18 @@ export function teamRanking(teams, players, scores) {
     .sort((a, b) => b.total - a.total)
 }
 
+/* Quiénes del equipo van en racha, de la más larga a la más corta. En equipos
+   el ranking muestra equipos, y sonaba el 🔥 sin que se viera de quién
+   (8-oct-2026): ahora cada fila de equipo lleva a sus integrantes en racha.
+   `nueva` = acaba de llegar a 3 (o a 5, 10…): es a quien anuncia el sonido. */
+export function streaksOf(memberIds, players, scores, min = 3) {
+  return memberIds
+    .map((id) => ({ id, name: players[id]?.name || '', streak: scores[id]?.streak || 0 }))
+    .filter((m) => m.streak >= min)
+    .map((m) => ({ ...m, nueva: m.streak === min || (m.streak >= 5 && m.streak % 5 === 0) }))
+    .sort((a, b) => b.streak - a.streak || a.name.localeCompare(b.name))
+}
+
 /* Mejor jugador individual, para destacarlo cuando se juega en equipos. */
 export function mvpOf(players, scores) {
   let best = null
