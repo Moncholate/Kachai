@@ -18,9 +18,12 @@ const TRACKS = {
   answering6: { file: 'answering-6.ogg', loop: true, loopStart: 49.9188 }, // Garden Groove
   /* level: lo que se oye en una pregunta son los primeros ~30 s, y estos temas
      parten más suaves que el resto (Ticking Pulse, −17,2 LUFS; Final Question,
-     −15,9, que abre en crescendo). Se suben para quedar en −15,4 como los demás. */
-  final: { file: 'final.ogg', loop: true, loopStart: 26.4896, level: 1.06 }, // Final Question
-  final2: { file: 'final-2.ogg', loop: true, loopStart: 36.6668, level: 1.035 }, // Final Sprint (las dos final: solo en la última pregunta)
+     −15,9, que abre en crescendo). Se suben para quedar en −15,4 como los demás.
+     Los dos de la última pregunta van ~1,5 dB más arriba, a propósito: medidos
+     iguales, en la sala se oían más bajos (bronces y guitarra sostenidos pegan
+     menos que los golpes secos del chiptune), y la final merece sobresalir. */
+  final: { file: 'final.ogg', loop: true, loopStart: 26.4896, level: 1.26 }, // Final Question
+  final2: { file: 'final-2.ogg', loop: true, loopStart: 36.6668, level: 1.22 }, // Final Sprint (las dos final: solo en la última pregunta)
   /* La fanfarria del campeón es música (se detiene con fundido al salir del podio),
      pero suena como efecto: canal de efectos, sin fundido de entrada (se comía el
      golpe inicial) y +1,2 dB, para que no quede más baja que la del 2.º y el 3.º. */
