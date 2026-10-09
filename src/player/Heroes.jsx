@@ -2,12 +2,12 @@
    duelo del ranking y el podio. Solo en el modo individual; el celular no
    suena (el sonido es del proyector). */
 import { useEffect, useMemo, useRef } from 'react'
-import { HEROES, OX, OY, escenaAplauso, escenaDuelo, escenaDuelo2, escenaGana, escenaGana2, escenaPodio, sprite } from '../game/heroes.js'
+import { HEROES, escenaAplauso, escenaDuelo, escenaDuelo2, escenaGana, escenaGana2, escenaPodio, sprite } from '../game/heroes.js'
 import { useT } from '../i18n.jsx'
 
 const CLASE_EN = {
   latte: 'Trickster', agattita: 'Druid', malala: 'Witch', malia: 'Chef', kenny: 'Bard',
-  tivan: 'Alchemist', patroclus: 'Scout', uchis: 'Rogue', janet: 'Elf', jelic: 'Paladin',
+  tivan: 'Alchemist', patroclus: 'Scout', uchis: 'Rogue', janet: 'Elf', jelic: 'Paladin', cupe: 'Noble', july: 'Blacksmith', edith: 'Warlock', uzu: 'Goblin', xitin: 'Summoner',
 }
 export const claseDe = (hero, idioma) => (idioma === 'en' ? CLASE_EN[hero.id] : hero.clase)
 
@@ -53,22 +53,41 @@ export function HeroApplause({ me }) {
   return <Lienzo dibujar={dibujar} label={me.nombre} className={ESCENA} />
 }
 
+/* El personaje entero en guardia (con su arma), centrado por su contorno real:
+   cada dibujo ocupa distinto espacio en su lienzo y, sin esto, quedaban cargados a un lado. */
+const marcos = new Map()
+function marco(hero) {
+  if (marcos.has(hero.id)) return marcos.get(hero.id)
+  const spr = sprite(hero, 'guardia'), { width: w, height: h } = spr
+  const d = spr.getContext('2d').getImageData(0, 0, w, h).data
+  let x0 = w, y0 = h, x1 = 0, y1 = 0
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y) }
+  const m = { spr, x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }
+  marcos.set(hero.id, m)
+  return m
+}
+const LADO = 44
+const centrado = (g, hero, dy = 0) => {
+  const m = marco(hero)
+  g.drawImage(sprite(hero, 'guardia'), Math.round((LADO - m.w) / 2 - m.x), Math.round((LADO - m.h) / 2 - m.y) + dy)   // se pide de nuevo: el de Xitin palpita
+}
+
 function Cara({ hero }) {
   const ref = useRef(null)
   useEffect(() => {
     const g = ref.current.getContext('2d')
-    g.clearRect(0, 0, 26, 26)
-    g.drawImage(sprite(hero, null), OX - 1, OY - 2, 26, 26, 0, 0, 26, 26)
+    g.clearRect(0, 0, LADO, LADO)
+    centrado(g, hero)
   }, [hero])
-  return <canvas ref={ref} width={26} height={26} style={PIXEL} className="w-full h-full" />
+  return <canvas ref={ref} width={LADO} height={LADO} style={PIXEL} className="w-full h-full" />
 }
 
 function EnGuardia({ hero }) {
   const dibujar = useMemo(() => (g, t) => {
-    g.clearRect(0, 0, 48, 42)
-    g.drawImage(sprite(hero, 'guardia'), 2, -2 + (Math.floor(t / 400) % 2))
+    g.clearRect(0, 0, LADO, LADO)
+    centrado(g, hero, Math.floor(t / 400) % 2)
   }, [hero])
-  return <Lienzo dibujar={dibujar} ancho={48} alto={42} label={hero.nombre} className="w-24 shrink-0" />
+  return <Lienzo dibujar={dibujar} ancho={LADO} alto={LADO} label={hero.nombre} className="w-24 shrink-0" />
 }
 
 /* En el lobby: diez caras para tocar y la ficha del elegido. */
