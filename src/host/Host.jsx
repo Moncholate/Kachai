@@ -303,7 +303,7 @@ function HostRoom({ store, pin, tema }) {
      responder arranca con el cronómetro. Revelar y ranking tampoco llevan música. */
   const stage = podiumStage(state?.phase === 'end' ? state.startedAt : null, now)
   // En el podio la música la pone el guion de abajo (la fanfarria larga entra con el 1.º).
-  /* La última pregunta tiene su tema propio (Final Question), haya 2X o no. */
+  /* La última pregunta tiene su tema propio (Final Question o Final Sprint, según el juego), haya 2X o no. */
   const track = state?.phase === 'end' ? null
     : state?.phase === 'answering' && isLast ? 'final'
     : ({ lobby: 'lobby', answering: answeringTrack(state?.round, state?.qIndex) }[state?.phase] ?? null)
@@ -1396,14 +1396,36 @@ function celebrate() {
   return () => { clearInterval(id); timers.forEach(clearTimeout); confetti.reset() }
 }
 
-/* Oro, plata y bronce se ven igual en los dos temas. Por eso el texto va en hex
-   (amber-900, slate-700, orange-900) y no con la clase: el modo oscuro aclara
-   esas clases, y sobre el metal quedarían ilegibles. */
+/* LOS BLOQUES DEL PODIO (9-oct-2026). Eran tres barras con degradado; ahora
+   son bloques con volumen: la tapa de arriba en perspectiva (más clara, la
+   que recibe la luz), la cara del frente con el número en relieve y sombra a
+   los costados. Van pegados, como un podio de verdad, sobre un piso común.
+
+   Oro, plata y bronce se ven igual en los dos temas: el escenario del podio es
+   siempre oscuro, así que todo va en hex y no con clases que el modo oscuro
+   cambiaría. Cada metal: la tapa, el frente (de claro a oscuro) y la tinta. */
 const PLACES = {
-  1: { medal: '🥇', pedestal: 'h-[clamp(6rem,20vh,14rem)] bg-gradient-to-b from-yellow-300 to-amber-500 text-[#78350f]', width: 'w-60' },
-  2: { medal: '🥈', pedestal: 'h-[clamp(4.5rem,14vh,10rem)] bg-gradient-to-b from-slate-200 to-slate-400 text-[#334155]', width: 'w-44' },
-  3: { medal: '🥉', pedestal: 'h-[clamp(3rem,9vh,7rem)] bg-gradient-to-b from-orange-300 to-orange-500 text-[#7c2d12]', width: 'w-44' },
+  1: { medal: '🥇', tapa: '#fde68a', frente: 'linear-gradient(180deg, #facc15 0%, #f59e0b 55%, #b45309 100%)', tinta: '#78350f' },
+  2: { medal: '🥈', tapa: '#f1f5f9', frente: 'linear-gradient(180deg, #e2e8f0 0%, #94a3b8 60%, #64748b 100%)', tinta: '#334155' },
+  3: { medal: '🥉', tapa: '#fed7aa', frente: 'linear-gradient(180deg, #fdba74 0%, #f97316 55%, #9a3412 100%)', tinta: '#7c2d12' },
 }
+
+/* Las medidas de cada puesto, grandes mientras se revela y compactas cuando
+   aparece el resto de la lista (el podio sube y se achica para dejarle sitio).
+   Contra la ventana (vw/vh): el podio ocupa la pantalla del proyector entera. */
+const MEDIDAS = {
+  grande: {
+    1: { ancho: 'clamp(11rem, 21vw, 21rem)', alto: 'clamp(9rem, 30vh, 19rem)' },
+    2: { ancho: 'clamp(9rem, 17vw, 17rem)', alto: 'clamp(6.5rem, 21vh, 13rem)' },
+    3: { ancho: 'clamp(9rem, 17vw, 17rem)', alto: 'clamp(4.5rem, 14vh, 9rem)' },
+  },
+  compacto: {
+    1: { ancho: 'clamp(9rem, 15vw, 15rem)', alto: 'clamp(4rem, 12vh, 8rem)' },
+    2: { ancho: 'clamp(7.5rem, 12vw, 12rem)', alto: 'clamp(3rem, 8.5vh, 5.5rem)' },
+    3: { ancho: 'clamp(7.5rem, 12vw, 12rem)', alto: 'clamp(2.25rem, 6vh, 4rem)' },
+  },
+}
+const SUAVE = 'all .8s cubic-bezier(.2,.8,.2,1)'
 
 function CountUp({ to, ms = 1200 }) {
   const [value, setValue] = useState(0)
@@ -1421,11 +1443,22 @@ function CountUp({ to, ms = 1200 }) {
   return value
 }
 
-const PODIUM_LIST = 15 // el podio lista hasta el 15.º; los demás, en el resumen del curso
+/* El proyector lista hasta el 10.º; del 11.º para abajo, en el Resumen del
+   curso. Era hasta el 15.º en letra chica; en grande, los últimos puestos
+   quedarían demasiado expuestos frente al curso (9-oct-2026). */
+const PODIUM_LIST = 10
 
+/* EL PODIO COMO ESCENARIO (9-oct-2026). Ocupa la pantalla entera por encima
+   de todo: lo de atrás queda desenfocado y apagado, como una sala con las
+   luces bajas, y el podio al centro, grande, con un foco que se enciende con
+   el campeón. Cinco segundos después del campeón (PODIUM_AT.rest) el podio
+   sube y se achica, y debajo aparecen del 4.º al 10.º en un tamaño que se
+   lee desde el fondo de la sala. */
 function Podium({ ranking, mvp, stage, onAgain, onReport }) {
   const t = useT()
   const shown = { 1: stage.first, 2: stage.second, 3: stage.third }
+  const compacto = stage.rest
+  const medidas = MEDIDAS[compacto ? 'compacto' : 'grande']
 
   // Solo si el primero aparece ahora (no al recargar la página mucho después).
   const celebrated = useRef(false)
@@ -1438,76 +1471,121 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
   const column = (place) => {
     const p = ranking[place - 1]
     const style = PLACES[place]
+    const m = medidas[place]
     const champion = place === 1
     const waiting = !shown[place] && p
     return (
-      <div className={`flex flex-col items-center justify-end gap-2 ${style.width}`}>
-        {p && shown[place] && (
-          <div className={`flex flex-col items-center gap-1 w-full ${champion ? 'animate-champion' : 'animate-rise'}`}>
-            {champion && <span className="text-4xl -mb-2">👑</span>}
-            <span className={champion ? 'text-6xl' : 'text-4xl'}>{style.medal}</span>
-            <span className={`font-black text-center truncate w-full ${champion ? 'text-3xl' : 'text-2xl'}`}>{p.name}</span>
-            {/* Los puntos llegan al final, todos a la vez, para comparar las
-                distancias sin adelantar quién ganó. El espacio queda reservado. */}
-            <span className={`font-bold tabular-nums text-slate-600 ${champion ? 'text-2xl' : 'text-lg'}
-              ${stage.rest ? 'animate-rise' : 'invisible'}`}>
-              {stage.rest ? <CountUp to={p.total} /> : 0} {t('ptsCorto')}
+      <div className="flex flex-col items-center justify-end" style={{ width: m.ancho, transition: SUAVE }}>
+        {/* Quién: medalla, nombre y, al final, los puntos. */}
+        <div className="flex flex-col items-center w-full px-2 pb-3 min-h-[1px]">
+          {p && shown[place] && (
+            <div className={`flex flex-col items-center w-full ${champion ? 'animate-champion' : 'animate-rise'}`}>
+              {champion && <span className="leading-none -mb-1" style={{ fontSize: compacto ? '2rem' : 'clamp(2.5rem, 6vh, 4rem)', transition: SUAVE }}>👑</span>}
+              <span className="leading-none" style={{ fontSize: champion ? (compacto ? '2.5rem' : 'clamp(3.5rem, 9vh, 6rem)') : (compacto ? '2rem' : 'clamp(2.5rem, 6.5vh, 4.25rem)'), transition: SUAVE }}>{style.medal}</span>
+              <span className="mt-1 font-black text-center truncate w-full text-white"
+                style={{ fontSize: champion ? (compacto ? '1.75rem' : 'clamp(2rem, 5vh, 3.5rem)') : (compacto ? '1.25rem' : 'clamp(1.4rem, 3.4vh, 2.4rem)'), textShadow: '0 2px 12px rgba(0,0,0,.6)', transition: SUAVE }}>
+                {p.name}
+              </span>
+              {/* Los puntos llegan al final, todos a la vez, para comparar las
+                  distancias sin adelantar quién ganó. */}
+              {stage.rest && (
+                <span className="font-bold tabular-nums text-white/80 animate-rise" style={{ fontSize: champion ? '1.4rem' : '1.1rem' }}>
+                  <CountUp to={p.total} /> {t('ptsCorto')}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        {/* El bloque: tapa en perspectiva y frente con el número en relieve. */}
+        <div className="w-full" aria-hidden={waiting ? 'true' : undefined}>
+          <div style={{ height: compacto ? '0.9rem' : 'clamp(1rem, 2.6vh, 1.6rem)', background: style.tapa, clipPath: 'polygon(6% 0, 94% 0, 100% 100%, 0 100%)', transition: SUAVE }} />
+          <div className={`grid place-items-center ${champion && shown[1] ? 'animate-glow' : ''}`}
+            style={{
+              height: m.alto, background: style.frente, transition: SUAVE,
+              boxShadow: 'inset 0 -18px 28px rgba(0,0,0,.28), inset 14px 0 22px rgba(255,255,255,.22), inset -14px 0 22px rgba(0,0,0,.22)',
+            }}>
+            <span className={`font-black leading-none ${waiting ? 'animate-pulse opacity-60' : ''}`}
+              style={{ color: style.tinta, fontSize: compacto ? '2.25rem' : 'clamp(3rem, 8vh, 5.5rem)', textShadow: '0 2px 0 rgba(255,255,255,.45), 0 -1px 0 rgba(0,0,0,.25)', transition: SUAVE }}>
+              {waiting ? '?' : place}
             </span>
           </div>
-        )}
-        <div className={`w-full rounded-t-3xl grid place-items-center font-black shadow-lg ${style.pedestal}
-          ${champion && shown[1] ? 'animate-glow' : ''}`}>
-          <span className={`text-5xl ${waiting ? 'animate-pulse opacity-60' : ''}`}>
-            {waiting ? '?' : place}
-          </span>
         </div>
       </div>
     )
   }
 
+  const resto = ranking.slice(3, PODIUM_LIST)
   return (
-    <section className="flex flex-col items-center gap-5">
-      <h2 className="text-3xl font-black">
-        {stage.first ? t('yElGanadorFiesta') : stage.drumroll ? t('yElGanador') : t('resultadosFinales')}
-      </h2>
-      <div className="flex items-end gap-3 min-h-[clamp(14rem,40vh,26rem)]">
-        {column(2)}
-        {column(1)}
-        {column(3)}
+    <section className="fixed inset-0 z-40 overflow-y-auto text-white"
+      style={{
+        background: 'radial-gradient(ellipse at 50% 35%, rgba(30, 27, 75, .55), rgba(2, 6, 23, .9) 72%)',
+        backdropFilter: 'blur(12px) brightness(.6)', WebkitBackdropFilter: 'blur(12px) brightness(.6)',
+      }}>
+      {/* La profundidad: luces de colores muy difusas al fondo (los colores de
+          Kachai) y un foco desde arriba que se enciende con el campeón. */}
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
+        <span className="absolute -left-[10vw] top-[10vh] w-[40vw] h-[40vw] rounded-full blur-3xl opacity-25" style={{ background: '#7c3aed' }} />
+        <span className="absolute -right-[8vw] top-[30vh] w-[36vw] h-[36vw] rounded-full blur-3xl opacity-20" style={{ background: '#0d9488' }} />
+        <span className="absolute left-[30vw] -bottom-[20vw] w-[40vw] h-[40vw] rounded-full blur-3xl opacity-20" style={{ background: '#db2777' }} />
+        <span className="absolute left-1/2 top-0 -translate-x-1/2 w-[70vw] h-[90vh]"
+          style={{
+            background: 'radial-gradient(ellipse at 50% 0%, rgba(255, 244, 214, .30), rgba(255, 244, 214, 0) 70%)',
+            clipPath: 'polygon(38% 0, 62% 0, 100% 100%, 0 100%)',
+            opacity: stage.first ? 1 : 0.35, transition: 'opacity 1.2s ease',
+          }} />
       </div>
-      {stage.rest && ranking.length > 3 && (
-        /* Del 4.º al 15.º en columnas; el resto, en el resumen del curso: con 30
-           alumnos la lista completa empujaba el podio fuera de la pantalla. */
-        <ol start={4} className="w-full max-w-5xl grid sm:grid-cols-2 lg:grid-cols-4 gap-1.5 animate-rise">
-          {ranking.slice(3, PODIUM_LIST).map((p, i) => (
-            <li key={p.id} className="flex gap-3 rounded-xl bg-white border border-slate-200 px-3 py-1.5 text-sm">
-              <span className="w-6 text-slate-400 font-bold">{i + 4}</span>
-              <span className="flex-1 font-bold truncate">{p.name}</span>
-              <span className="tabular-nums font-bold">{p.total}</span>
-            </li>
-          ))}
-          {ranking.length > PODIUM_LIST && (
-            <li className="flex items-center justify-center rounded-xl border border-dashed border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-500">
-              {t('yNMas', ranking.length - PODIUM_LIST)}
-            </li>
-          )}
-        </ol>
-      )}
-      {stage.rest && mvp && (
-        <div className="flex items-center gap-4 rounded-3xl bg-gradient-to-r from-amber-100 to-yellow-50 border-2 border-amber-300 px-5 py-2 animate-rise">
-          <span className="text-4xl">⭐</span>
-          <div>
-            <p className="text-sm font-black uppercase tracking-widest text-amber-700">{t('mvpMejor')}</p>
-            <p className="text-2xl font-black">{mvp.name} <span className="text-lg font-bold text-slate-600 tabular-nums">· {mvp.total} {t('ptsCorto')}</span></p>
+
+      <div className="relative min-h-full flex flex-col items-center justify-center gap-[2.2vh] px-6 py-[2.5vh]">
+        <h2 className="font-black text-center" style={{ fontSize: compacto ? '2rem' : 'clamp(2rem, 5vh, 3.25rem)', textShadow: '0 2px 16px rgba(0,0,0,.6)', transition: SUAVE }}>
+          {stage.first ? t('yElGanadorFiesta') : stage.drumroll ? t('yElGanador') : t('resultadosFinales')}
+        </h2>
+
+        <div className="relative flex flex-col items-center">
+          <div className="flex items-end">
+            {column(2)}
+            {column(1)}
+            {column(3)}
           </div>
+          {/* El piso: una franja común bajo los tres bloques y su sombra. */}
+          <div className="w-[108%] h-3 rounded-b-lg" style={{ background: 'linear-gradient(180deg, #475569, #1e293b)' }} />
+          <div className="w-[115%] h-6 -mt-1 rounded-[50%] blur-md" style={{ background: 'rgba(0,0,0,.55)' }} />
         </div>
-      )}
-      {stage.rest && (
-        <div className="flex flex-wrap justify-center gap-3 animate-rise">
-          <Button onClick={onReport}>{t('resumenCurso')}</Button>
-          <Button variant="ghost" onClick={onAgain}>{t('jugarOtraVez')}</Button>
-        </div>
-      )}
+
+        {stage.rest && resto.length > 0 && (
+          /* Del 4.º al 10.º, grande y en dos columnas, entrando de a uno. */
+          <ol start={4} className="w-full max-w-5xl grid md:grid-cols-2 gap-x-5 gap-y-[1vh]">
+            {resto.map((p, i) => (
+              <li key={p.id} className="flex items-center gap-4 rounded-2xl px-5 py-[1vh] animate-rise"
+                style={{ background: 'rgba(255,255,255,.09)', border: '1px solid rgba(255,255,255,.16)', animationDelay: `${i * 120}ms`, fontSize: 'clamp(1.1rem, 2.8vh, 2rem)' }}>
+                <span className="w-10 text-center font-black text-white/60 tabular-nums">{i + 4}</span>
+                <span className="flex-1 font-bold truncate">{p.name}</span>
+                <span className="tabular-nums font-bold text-white/80">{p.total}</span>
+              </li>
+            ))}
+            {ranking.length > PODIUM_LIST && (
+              <li className="flex items-center justify-center rounded-2xl px-5 py-[1vh] text-lg font-bold text-white/60 animate-rise"
+                style={{ border: '1px dashed rgba(255,255,255,.25)', animationDelay: `${resto.length * 120}ms` }}>
+                {t('yNMas', ranking.length - PODIUM_LIST)}
+              </li>
+            )}
+          </ol>
+        )}
+        {stage.rest && mvp && (
+          <div className="flex items-center gap-4 rounded-3xl bg-gradient-to-r from-amber-100 to-yellow-50 border-2 border-amber-300 px-5 py-2 animate-rise" style={{ color: '#0f172a' }}>
+            <span className="text-4xl">⭐</span>
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest" style={{ color: '#b45309' }}>{t('mvpMejor')}</p>
+              <p className="text-2xl font-black">{mvp.name} <span className="text-lg font-bold tabular-nums" style={{ color: '#475569' }}>· {mvp.total} {t('ptsCorto')}</span></p>
+            </div>
+          </div>
+        )}
+        {stage.rest && (
+          <div className="flex flex-wrap justify-center gap-3 animate-rise">
+            <Button onClick={onReport}>{t('resumenCurso')}</Button>
+            <Button variant="ghost" onClick={onAgain}>{t('jugarOtraVez')}</Button>
+          </div>
+        )}
+      </div>
     </section>
   )
 }

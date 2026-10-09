@@ -24,7 +24,10 @@ export const PODIUM_AT = {
   second,
   drumroll: first - SOUND_MS.drumrollLong, // "And the winner is…" mientras suena el redoble largo
   first,
-  rest: first + 2300, // del 4.º lugar hacia abajo, y los botones del final
+  /* Del 4.º al 10.º, y los botones del final. Cinco segundos y no dos: el
+     campeón tiene su momento solo en el escenario antes de que el podio se
+     achique para dejar sitio a la lista (pedido de la profesora, 9-oct-2026). */
+  rest: first + 5000,
 }
 
 export function podiumStage(startedAt, now) {
