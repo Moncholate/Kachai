@@ -7,7 +7,7 @@ import { ACTIVITY_TYPES, COURSES, LEVELS, SETS, courseOf, getSet, sameTypeIn } f
 import { cleanOldRooms, forgetRoom, isOld, noteRoom, removeIfSame } from '../game/cleanup.js'
 import { DOUBLE, STREAK_MIN, answerProgress, buildPublicQuestion, playOrder, playedQuestions, historyEntry, historyKey, isChoice, reviewQuestion, checkAnswer, nextStreak, scoreFor, solutionOf } from '../game/logic.js'
 import { Button, CHOICE_STYLES, Center, ChoiceLetter, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, StreakName, TimerBar, choiceCols } from '../ui.jsx'
-import { answeringTrack, getSound } from './sound.js'
+import { answeringTrack, finalTrack, getSound } from './sound.js'
 import Editor, { blankQuestion } from './Editor.jsx'
 import ClassReport from './ClassReport.jsx'
 import { buildReport } from '../game/report.js'
@@ -305,7 +305,7 @@ function HostRoom({ store, pin, tema }) {
   // En el podio la música la pone el guion de abajo (la fanfarria larga entra con el 1.º).
   /* La última pregunta tiene su tema propio (Final Question o Final Sprint, según el juego), haya 2X o no. */
   const track = state?.phase === 'end' ? null
-    : state?.phase === 'answering' && isLast ? 'final'
+    : state?.phase === 'answering' && isLast ? finalTrack(state?.round)
     : ({ lobby: 'lobby', answering: answeringTrack(state?.round, state?.qIndex) }[state?.phase] ?? null)
   useEffect(() => { getSound().play(track) }, [track])
   useEffect(() => () => { getSound().play(null) }, [])

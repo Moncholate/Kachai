@@ -13,9 +13,14 @@ const TRACKS = {
   answering: { file: 'answering.ogg', loop: true }, // Tick Tack Minigame
   answering2: { file: 'answering-2.ogg', loop: true, loopStart: 29.3447 }, // Clockwork Groove
   answering3: { file: 'answering-3.ogg', loop: true, loopStart: 4.2658 }, // Village Quest
-  answering4: { file: 'answering-4.ogg', loop: true, loopStart: 77.874 }, // Ticking Pulse (la intro ya dura más que una pregunta)
+  answering4: { file: 'answering-4.ogg', loop: true, loopStart: 77.874, level: 1.23 }, // Ticking Pulse (la intro ya dura más que una pregunta)
   answering5: { file: 'answering-5.ogg', loop: true, loopStart: 4.2657 }, // Pendulum Kingdom
-  final: { file: 'final.ogg', loop: true, loopStart: 26.4896 }, // Final Question: solo en la última pregunta
+  answering6: { file: 'answering-6.ogg', loop: true, loopStart: 49.9188 }, // Garden Groove
+  /* level: lo que se oye en una pregunta son los primeros ~30 s, y estos temas
+     parten más suaves que el resto (Ticking Pulse, −17,2 LUFS; Final Question,
+     −15,9, que abre en crescendo). Se suben para quedar en −15,4 como los demás. */
+  final: { file: 'final.ogg', loop: true, loopStart: 26.4896, level: 1.06 }, // Final Question
+  final2: { file: 'final-2.ogg', loop: true, loopStart: 36.6668, level: 1.035 }, // Final Sprint (las dos final: solo en la última pregunta)
   /* La fanfarria del campeón es música (se detiene con fundido al salir del podio),
      pero suena como efecto: canal de efectos, sin fundido de entrada (se comía el
      golpe inicial) y +1,2 dB, para que no quede más baja que la del 2.º y el 3.º. */
@@ -25,9 +30,12 @@ const TRACKS = {
 /* Temas para responder, en rotación: cada pregunta cambia de tema y nunca
    repite el de la anterior. Todos a 116 BPM y al mismo volumen (−15 LUFS),
    cortados en loop con tools/make-loop.mjs. */
-export const ANSWERING_TRACKS = ['answering', 'answering2', 'answering3', 'answering4', 'answering5']
+export const ANSWERING_TRACKS = ['answering', 'answering2', 'answering3', 'answering4', 'answering5', 'answering6']
 export const answeringTrack = (round, qIndex) =>
   ANSWERING_TRACKS[(((round || 0) + qIndex + 1) % ANSWERING_TRACKS.length + ANSWERING_TRACKS.length) % ANSWERING_TRACKS.length]
+/* La última pregunta alterna entre sus dos temas, un juego cada uno. */
+export const FINAL_TRACKS = ['final', 'final2']
+export const finalTrack = (round) => FINAL_TRACKS[(round || 0) % FINAL_TRACKS.length]
 /* Efectos de Suno, cortos y de una sola vez: van directo al master, sin fundidos. */
 const EFFECTS = {
   question: 'question.ogg', // aparece la pregunta (empieza la lectura)
