@@ -8,6 +8,8 @@ import confetti from 'canvas-confetti'
 import { Button, CHOICE_STYLES, Center, ChoiceLetter, Logo, PART_KEYS, Prompt, ROLES, RoleTag, StreakBadge, StreakName, TimerBar, choiceCols } from '../ui.jsx'
 import { ProveedorIdioma, SelectorIdioma, idiomaDelNavegador, nombreEquipo, traducir, useT, valido } from '../i18n.jsx'
 import { useTema } from '../tema.jsx'
+import { heroFor } from '../game/heroes.js'
+import { HeroApplause, HeroDuel, HeroPicker, HeroPodium } from './Heroes.jsx'
 
 /* sessionStorage y no localStorage: cada pestaña es un jugador distinto (útil
    para probar), y recargar la página conserva al mismo jugador. Si el celular
@@ -16,6 +18,12 @@ const pidKey = (pin) => `kachai-pid-${pin}`
 const saved = {
   get(k) { try { return sessionStorage.getItem(k) } catch { return null } },
   set(k, v) { try { v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k) } catch { /* sin storage */ } },
+}
+/* El personaje elegido se recuerda en el celular para el próximo juego. */
+const HERO_KEY = 'kachai-heroe'
+const savedHero = {
+  get() { try { return localStorage.getItem(HERO_KEY) } catch { return null } },
+  set(v) { try { localStorage.setItem(HERO_KEY, v) } catch { /* sin storage */ } },
 }
 const randomId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 
@@ -83,7 +91,8 @@ function JoinForm({ store, initialPin, notice, onJoined, onIdioma }) {
         pid = same[0]
       } else {
         pid = randomId()
-        await store.set(`rooms/${p}/players/${pid}`, { name: n, joinedAt: store.stamp() })
+        const hero = savedHero.get()
+        await store.set(`rooms/${p}/players/${pid}`, { name: n, joinedAt: store.stamp(), ...(hero ? { hero } : {}) })
       }
       saved.set(pidKey(p), pid)
       onJoined({ pin: p, pid })
@@ -166,6 +175,10 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
   const lastQuestion = ['reading', 'answering', 'reveal'].includes(state.phase) && state.qIndex + 1 >= state.total
   const secretScore = lastQuestion || (state.phase === 'end' && !podiumStage(state.startedAt, now).rest)
 
+  const me = heroFor(pid, profile.hero)
+  const pickHero = (id) => { savedHero.set(id); store.update(`${base}/players/${pid}`, { hero: id }) }
+  const stage = state.phase === 'end' ? podiumStage(state.startedAt, now) : null
+
   const myTeam = teamMode && teams[profile.team] ? { id: profile.team, ...teams[profile.team] } : null
   const teamRank = teamMode ? teamRanking(teams, players, scores) : []
   const myTeamPlace = myTeam ? teamRank.findIndex((tm) => tm.id === myTeam.id) + 1 : 0
@@ -178,6 +191,7 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
       : (
         <Message emoji="✅" title={t('estasDentro', profile.name)}>
           {t('miraPantallaEmpieza')}
+          <HeroPicker value={me.id} onPick={pickHero} />
         </Message>
       )
     body = lastGame
@@ -235,6 +249,7 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
   } else if (state.phase === 'leaderboard') {
     body = (
       <Message emoji="📊" title={score?.rank ? t('vasNumero', score.rank) : t('ranking')}>
+        <HeroDuelScene board={state.board} pid={pid} me={me} />
         {t('puntos', score?.total ?? 0)}
         <DuelNote board={state.board} id={pid} />
         {state.nextDouble && <DoubleBadge text={t('dobleProxima')} />}
@@ -251,7 +266,20 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
             : <FinalPosition score={score} />}
         </EndTabs>
       )
-      : <Message emoji="👀" title={t('miraPantalla')}>{t('revelandoPodio')}</Message>
+      : !myTeam && score?.rank <= 3 && stage[['first', 'second', 'third'][score.rank - 1]]
+        ? (
+          <Message title={t('quedastePuesto', score.rank)}>
+            <HeroPodium key="podio" me={me} place={score.rank} />
+            <i className="block mt-3">{me.nombre}: “{me.frase}”</i>
+          </Message>
+        )
+        : !myTeam && stage.third
+          ? (
+            <Message title={t('aplaudeGanadores')}>
+              <HeroApplause me={me} />
+            </Message>
+          )
+          : <Message emoji="👀" title={t('miraPantalla')}>{t('revelandoPodio')}</Message>
   }
 
   return (
@@ -319,6 +347,19 @@ function TeamLobby({ profile, pid, meta, teams, players, onPick }) {
       )}
     </div>
   )
+}
+
+/* El duelo del ranking dibujado con los personajes: si adelantaste a tu rival,
+   lo desarmas; si estás a tiro de alguien (o te adelantó), chocan. */
+function HeroDuelScene({ board, pid, me }) {
+  const overtakes = board?.overtakes ? Object.values(board.overtakes) : []
+  const passed = overtakes.find((o) => o.who.id === pid)
+  const lost = overtakes.find((o) => o.over.id === pid)
+  const duel = board?.personal?.[pid]
+  if (passed) return <div className="mb-3"><HeroDuel me={me} rival={heroFor(passed.over.id, passed.over.hero)} won /></div>
+  if (duel) return <div className="mb-3"><HeroDuel me={me} rival={heroFor(duel.rival, duel.rivalHero)} /></div>
+  if (lost) return <div className="mb-3"><HeroDuel me={me} rival={heroFor(lost.who.id, lost.who.hero)} /></div>
+  return null
 }
 
 /* El duelo personal en el ranking (ver game/duels.js): adelantamientos de esta
@@ -559,9 +600,9 @@ function PracticeBadge() {
 function Message({ emoji, title, children }) {
   return (
     <div className="pt-16 flex flex-col items-center text-center gap-3">
-      <span className="text-6xl">{emoji}</span>
+      {emoji && <span className="text-6xl">{emoji}</span>}
       <h2 className="text-2xl font-black">{title}</h2>
-      <div className="text-slate-600">{children}</div>
+      <div className="w-full text-slate-600">{children}</div>
     </div>
   )
 }

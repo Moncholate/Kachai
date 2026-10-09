@@ -1036,7 +1036,7 @@ function activityLabel(set) {
 function individualRanking(players, scores) {
   return Object.entries(scores)
     .filter(([id]) => players[id])
-    .map(([id, s]) => ({ id, name: players[id].name, ...s }))
+    .map(([id, s]) => ({ id, name: players[id].name, ...(players[id].hero ? { hero: players[id].hero } : {}), ...s }))
     .sort((a, b) => b.total - a.total)
 }
 
