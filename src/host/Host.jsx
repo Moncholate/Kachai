@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { QrAmpliable } from './QrAmpliable.jsx'
 import { isOnline } from '../net/store.js'
@@ -1457,12 +1457,37 @@ const PODIUM_LIST = 10
    luces bajas, y el podio al centro, grande, con un foco que se enciende con
    el campeón. Cinco segundos después del campeón (PODIUM_AT.rest) el podio
    sube y se achica, y debajo aparecen del 4.º al 10.º en un tamaño que se
-   lee desde el fondo de la sala. */
+   lee desde el fondo de la sala.
+
+   EL FOCO SIGUE AL PUESTO QUE SE REVELA (9-oct-2026): gira desde arriba hacia
+   el 3.º, después al 2.º y al final al 1.º, como un foco de escenario. Se
+   mide dónde quedó cada bloque y se calcula el ángulo; el giro es una
+   transición de CSS. */
 function Podium({ ranking, mvp, stage, onAgain, onReport }) {
   const t = useT()
   const shown = { 1: stage.first, 2: stage.second, 3: stage.third }
   const compacto = stage.rest
   const medidas = MEDIDAS[compacto ? 'compacto' : 'grande']
+
+  const bloques = useRef({})
+  const [foco, setFoco] = useState(null) // { angulo, largo } desde el centro de arriba
+  const objetivo = stage.first ? 1 : stage.second ? 2 : stage.third ? 3 : null
+  useLayoutEffect(() => {
+    const medir = () => {
+      const el = bloques.current[objetivo ?? 1]
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const dx = r.left + r.width / 2 - innerWidth / 2
+      const dy = Math.max(1, r.top)
+      setFoco({ angulo: -Math.atan2(dx, dy) * 180 / Math.PI, largo: Math.hypot(dx, dy + r.height * 0.7) })
+    }
+    medir()
+    /* Al pasar a compacto los bloques se achican con una transición: se vuelve
+       a medir cuando terminan de moverse. */
+    const otra = setTimeout(medir, 900)
+    addEventListener('resize', medir)
+    return () => { clearTimeout(otra); removeEventListener('resize', medir) }
+  }, [objetivo, compacto])
 
   // Solo si el primero aparece ahora (no al recargar la página mucho después).
   const celebrated = useRef(false)
@@ -1480,15 +1505,19 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
     const waiting = !shown[place] && p
     return (
       <div className="flex flex-col items-center justify-end" style={{ width: m.ancho, transition: SUAVE }}>
-        {/* Quién: medalla, nombre y, al final, los puntos. */}
+        {/* Quién: medalla, nombre y, al final, los puntos. EL LUGAR SE
+            RESERVA DESDE EL PRINCIPIO, invisible: si apareciera recién al
+            revelarse, el podio crecería hacia arriba y, como va centrado en la
+            pantalla, todo bajaba un poco con el 2.º y con el 1.º. */}
         <div className="flex flex-col items-center w-full px-2 pb-3 min-h-[1px]">
-          {p && shown[place] && (
-            <div className={`flex flex-col items-center w-full ${champion ? 'animate-champion' : 'animate-rise'}`}>
+          {p && (
+            <div className={`flex flex-col items-center w-full ${!shown[place] ? 'invisible' : champion ? 'animate-champion' : 'animate-rise'}`}
+              aria-hidden={shown[place] ? undefined : 'true'}>
               {champion && <span className="leading-none -mb-1" style={{ fontSize: compacto ? '2rem' : 'clamp(2.5rem, 6vh, 4rem)', transition: SUAVE }}>👑</span>}
               <span className="leading-none" style={{ fontSize: champion ? (compacto ? '2.5rem' : 'clamp(3.5rem, 9vh, 6rem)') : (compacto ? '2rem' : 'clamp(2.5rem, 6.5vh, 4.25rem)'), transition: SUAVE }}>{style.medal}</span>
               <span className="mt-1 font-black text-center truncate w-full text-white"
                 style={{ fontSize: champion ? (compacto ? '1.75rem' : 'clamp(2rem, 5vh, 3.5rem)') : (compacto ? '1.25rem' : 'clamp(1.4rem, 3.4vh, 2.4rem)'), textShadow: '0 2px 12px rgba(0,0,0,.6)', transition: SUAVE }}>
-                {p.name}
+                {shown[place] ? p.name : '·'}
               </span>
               {/* Los puntos llegan al final, todos a la vez, para comparar las
                   distancias sin adelantar quién ganó. */}
@@ -1503,7 +1532,7 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
         {/* El bloque: tapa en perspectiva y frente con el número en relieve. */}
         <div className="w-full" aria-hidden={waiting ? 'true' : undefined}>
           <div style={{ height: compacto ? '0.9rem' : 'clamp(1rem, 2.6vh, 1.6rem)', background: style.tapa, clipPath: 'polygon(6% 0, 94% 0, 100% 100%, 0 100%)', transition: SUAVE }} />
-          <div className={`grid place-items-center ${champion && shown[1] ? 'animate-glow' : ''}`}
+          <div ref={(el) => { bloques.current[place] = el }} className={`grid place-items-center ${champion && shown[1] ? 'animate-glow' : ''}`}
             style={{
               height: m.alto, background: style.frente, transition: SUAVE,
               boxShadow: 'inset 0 -18px 28px rgba(0,0,0,.28), inset 14px 0 22px rgba(255,255,255,.22), inset -14px 0 22px rgba(0,0,0,.22)',
@@ -1526,16 +1555,19 @@ function Podium({ ranking, mvp, stage, onAgain, onReport }) {
         backdropFilter: 'blur(12px) brightness(.6)', WebkitBackdropFilter: 'blur(12px) brightness(.6)',
       }}>
       {/* La profundidad: luces de colores muy difusas al fondo (los colores de
-          Kachai) y un foco desde arriba que se enciende con el campeón. */}
+          Kachai) y un foco desde arriba que apunta al puesto que se revela. */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
         <span className="absolute -left-[10vw] top-[10vh] w-[40vw] h-[40vw] rounded-full blur-3xl opacity-25" style={{ background: '#7c3aed' }} />
         <span className="absolute -right-[8vw] top-[30vh] w-[36vw] h-[36vw] rounded-full blur-3xl opacity-20" style={{ background: '#0d9488' }} />
         <span className="absolute left-[30vw] -bottom-[20vw] w-[40vw] h-[40vw] rounded-full blur-3xl opacity-20" style={{ background: '#db2777' }} />
-        <span className="absolute left-1/2 top-0 -translate-x-1/2 w-[70vw] h-[90vh]"
+        <span className="absolute left-1/2 top-0"
           style={{
-            background: 'radial-gradient(ellipse at 50% 0%, rgba(255, 244, 214, .30), rgba(255, 244, 214, 0) 70%)',
-            clipPath: 'polygon(38% 0, 62% 0, 100% 100%, 0 100%)',
-            opacity: stage.first ? 1 : 0.35, transition: 'opacity 1.2s ease',
+            width: 'clamp(16rem, 30vw, 30rem)', height: foco ? `${foco.largo}px` : '80vh',
+            transform: `translateX(-50%) rotate(${foco?.angulo ?? 0}deg)`, transformOrigin: '50% 0',
+            background: 'linear-gradient(180deg, rgba(255, 244, 214, .06), rgba(255, 244, 214, .30) 85%, rgba(255, 244, 214, 0))',
+            clipPath: 'polygon(44% 0, 56% 0, 100% 100%, 0 100%)',
+            opacity: stage.first ? 1 : objetivo ? 0.75 : 0.3,
+            transition: 'transform 1s cubic-bezier(.2,.8,.2,1), height 1s cubic-bezier(.2,.8,.2,1), opacity 1s ease',
           }} />
       </div>
 
