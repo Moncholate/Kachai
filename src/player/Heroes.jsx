@@ -2,7 +2,7 @@
    duelo del ranking y el podio. Solo en el modo individual; el celular no
    suena (el sonido es del proyector). */
 import { useEffect, useMemo, useRef } from 'react'
-import { HEROES, OX, OY, escenaAplauso, escenaDuelo, escenaGana, escenaPodio, sprite } from '../game/heroes.js'
+import { HEROES, OX, OY, escenaAplauso, escenaDuelo, escenaDuelo2, escenaGana, escenaGana2, escenaPodio, sprite } from '../game/heroes.js'
 import { useT } from '../i18n.jsx'
 
 const CLASE_EN = {
@@ -29,12 +29,16 @@ function Lienzo({ dibujar, ancho = 112, alto = 76, label, className }) {
 
 const ESCENA = 'w-full rounded-2xl border-4 border-slate-900'
 
-/* Duelo del ranking: chocan; si ganaste (adelantaste a tu rival), lo desarmas. */
+/* Duelo del ranking: chocan; si ganaste (adelantaste a tu rival), lo desarmas.
+   me y rival son un personaje, o dos (modo equipos: dos contra dos). */
 export function HeroDuel({ me, rival, won }) {
-  const dibujar = useMemo(() => (won
-    ? (g, t) => escenaGana(g, t, me, rival)
-    : (g, t) => escenaDuelo(g, t, me, rival)), [me, rival, won])
-  return <Lienzo dibujar={dibujar} label={`${me.nombre} vs ${rival.nombre}`} className={ESCENA} />
+  const a = [].concat(me), b = [].concat(rival)
+  const dos = a.length > 1 && b.length > 1
+  const clave = [...a, ...b].map((h) => h.id).join('|')
+  const dibujar = useMemo(() => (dos
+    ? (won ? (g, t) => escenaGana2(g, t, a, b) : (g, t) => escenaDuelo2(g, t, a, b))
+    : (won ? (g, t) => escenaGana(g, t, a[0], b[0]) : (g, t) => escenaDuelo(g, t, a[0], b[0]))), [clave, dos, won])
+  return <Lienzo dibujar={dibujar} label={`${a.map((h) => h.nombre).join(' + ')} vs ${b.map((h) => h.nombre).join(' + ')}`} className={ESCENA} />
 }
 
 /* Podio: salta al salir su nombre, levanta el arma y cae confeti. */

@@ -733,7 +733,7 @@ function fondo(g) {
   g.drawImage(FONDO, 0, 0);
   aves(g);
 }
-const sombra = (g, cx) => { g.fillStyle = "rgba(10,25,12,.45)"; g.fillRect(cx - 7, SUELO + 1, 14, 2); g.fillRect(cx - 5, SUELO + 3, 10, 1); };
+const sombra = (g, cx, dy = 0) => { g.fillStyle = "rgba(10,25,12,.45)"; g.fillRect(cx - 7, SUELO + dy + 1, 14, 2); g.fillRect(cx - 5, SUELO + dy + 3, 10, 1); };
 function chispa(g, x, y, f, col = "#FBBF24") {
   const r = [2, 4, 6, 4][f] ?? 0; if (!r) return;
   g.fillStyle = "#FFFFFF"; g.fillRect(x - r, y, r * 2 + 1, 1); g.fillRect(x, y - r, 1, r * 2 + 1);
@@ -829,10 +829,11 @@ function alcance(c, objetivo) {
   return objetivo - BASE - OX - punta(c)[0];
 }
 
-function escenaDuelo(g, t, yo, rival) {
+function escenaDuelo(g, t, yo, rival, { conFondo = true, dy = 0, dx = 0 } = {}) {
+  const y0 = Y0 + dy;
   const Tm = t % 3600, alt = yo.id === rival.id;
   const seg = (a, b) => (Tm - a) / (b - a);
-  const Da = alcance(yo, W / 2), Db = alcance(rival, W / 2);
+  const Da = Math.max(4, alcance(yo, W / 2) - dx), Db = Math.max(4, alcance(rival, W / 2) - dx);
   let k = 0, pose = "guardia", f = -1, shake = false, vuelo = -1;
   if (Tm < 700) k = 0;
   else if (Tm < 950) { k = seg(700, 950); pose = "ataque"; vuelo = k; }
@@ -843,38 +844,39 @@ function escenaDuelo(g, t, yo, rival) {
   else if (Tm < 2400) k = lerp(1, 0, seg(2050, 2400));
   if (reduce) { k = 1; pose = "ataque"; f = 2; shake = false; vuelo = -1; }
   const bob = pose === "guardia" && Math.floor(Tm / 350) % 2 ? 1 : 0;
-  g.save(); g.translate(shake ? (Math.floor(Tm / 40) % 2 ? 1 : -1) : 0, 0); fondo(g);
-  const xa = Math.round(BASE + Da * k), xb = Math.round(W - BASE - SW - Db * k);
-  sombra(g, xa + OX + 10); sombra(g, xb + SW - OX - 10);
+  g.save(); g.translate(shake ? (Math.floor(Tm / 40) % 2 ? 1 : -1) : 0, 0); if (conFondo) fondo(g);
+  const xa = Math.round(BASE + dx + Da * k), xb = Math.round(W - BASE - dx - SW - Db * k);
+  sombra(g, xa + OX + 10, dy); sombra(g, xb + SW - OX - 10, dy);
   const sinA = yo.arma === "cohete" && (vuelo >= 0 || f >= 0), sinB = rival.arma === "cohete" && (vuelo >= 0 || f >= 0);
-  poner(g, sprite(yo, pose, { sinMano: sinA }), xa, Y0 + bob, false);
-  poner(g, sprite(rival, pose, { alt, sinMano: sinB }), xb, Y0 + bob, true);
+  poner(g, sprite(yo, pose, { sinMano: sinA }), xa, y0 + bob, false);
+  poner(g, sprite(rival, pose, { alt, sinMano: sinB }), xb, y0 + bob, true);
   const [px, py] = punta(yo), [qx, qy] = punta(rival);
   if (vuelo >= 0) {
     const arco = (c) => (c.arma === "pocion" ? Math.sin(Math.PI * vuelo) * 14 : 0);
-    if (DISPARA[yo.arma] && !yo.raices) disparo(g, yo, lerp(xa + OX + px, W / 2 - 1, vuelo), Y0 + OY + py - arco(yo), 1);
-    if (DISPARA[rival.arma] && !rival.raices) disparo(g, rival, lerp(xb + SW - 1 - OX - qx, W / 2 + 1, vuelo), Y0 + OY + qy - arco(rival), -1);
+    if (DISPARA[yo.arma] && !yo.raices) disparo(g, yo, lerp(xa + OX + px, W / 2 - 1, vuelo), y0 + OY + py - arco(yo), 1);
+    if (DISPARA[rival.arma] && !rival.raices) disparo(g, rival, lerp(xb + SW - 1 - OX - qx, W / 2 + 1, vuelo), y0 + OY + qy - arco(rival), -1);
   }
   const brota = f >= 0 ? 1 : vuelo;
-  if (brota >= 0 && yo.raices) ramas(g, xa + OX + 16, W / 2, brota, 1, Y0 + OY + py);
-  if (brota >= 0 && rival.raices) ramas(g, xb + SW - 1 - OX - 16, W / 2, brota, -1, Y0 + OY + qy);
-  if (f >= 0 && (yo.arma === "pocion" || rival.arma === "pocion")) humo(g, W / 2, Y0 + OY + py, f);
-  if (f >= 0) chispa(g, W / 2, Y0 + OY + py, f, yo.orbe || rival.orbe || "#FBBF24");
-  if ((yo.arma === "naipes" || rival.arma === "naipes") && f >= 1) chispa(g, W / 2 + 1, Y0 + OY + py + 5, f - 1);   // el segundo cuchillo
+  if (brota >= 0 && yo.raices) ramas(g, xa + OX + 16, W / 2, brota, 1, y0 + OY + py);
+  if (brota >= 0 && rival.raices) ramas(g, xb + SW - 1 - OX - 16, W / 2, brota, -1, y0 + OY + qy);
+  if (f >= 0 && (yo.arma === "pocion" || rival.arma === "pocion")) humo(g, W / 2, y0 + OY + py, f);
+  if (f >= 0) chispa(g, W / 2, y0 + OY + py, f, yo.orbe || rival.orbe || "#FBBF24");
+  if ((yo.arma === "naipes" || rival.arma === "naipes") && f >= 1) chispa(g, W / 2 + 1, y0 + OY + py + 5, f - 1);   // el segundo cuchillo
   g.restore();
 }
 
 /* Ganar = desarmar. El arma del rival sale volando y queda clavada atrás;
    el rival se queda de pie, con las manos arriba. Nadie cae ni se lastima. */
-function escenaGana(g, Tm, yo, rival) {
+function escenaGana(g, Tm, yo, rival, { conFondo = true, dy = 0, dx = 0 } = {}) {
+  const y0 = Y0 + dy;
   if (reduce) Tm = 2600;
   const alt = yo.id === rival.id, seg = (a, b) => (Tm - a) / (b - a);
-  const rx = W - BASE - SW;
+  const rx = W - BASE - dx - SW;
   const espejoX = (bx) => rx + SW - 1 - OX - bx;            // columna del cuerpo → x en escena (el rival mira a la izquierda)
   const [mx, my] = POSE.guardia.mano;
-  const manoR = [espejoX(mx), Y0 + OY + my];                 // donde el rival tiene el arma
+  const manoR = [espejoX(mx), y0 + OY + my];                 // donde el rival tiene el arma
   const objetivo = manoR[0] - 1;
-  const D = alcance(yo, objetivo), [px, py] = punta(yo);
+  const D = Math.max(4, alcance(yo, objetivo) - dx), [px, py] = punta(yo);
   let k = 0, pose = "guardia", rPose = "guardia", f = -1, shake = false, vuelo = -1, vuela = -1;
   if (Tm < 600) {}
   else if (Tm < 850) { k = seg(600, 850); pose = "ataque"; vuelo = k; }
@@ -883,38 +885,52 @@ function escenaGana(g, Tm, yo, rival) {
   else if (Tm < 1900) { k = lerp(1, 0, seg(1500, 1900)); rPose = "rendido"; vuela = seg(1050, 1650); }
   else { pose = "alzada"; rPose = "rendido"; vuela = 1; }
   const bob = Tm >= 1900 && Math.floor(Tm / 300) % 2 ? 1 : 0;
-  g.save(); g.translate(shake ? (Math.floor(Tm / 40) % 2 ? 1 : -1) : 0, 0); fondo(g);
-  const xa = Math.round(BASE + D * k);
-  sombra(g, xa + OX + 10); sombra(g, rx + SW - OX - 10);
-  poner(g, sprite(rival, rPose, { alt }), rx, Y0, true);
+  g.save(); g.translate(shake ? (Math.floor(Tm / 40) % 2 ? 1 : -1) : 0, 0); if (conFondo) fondo(g);
+  const xa = Math.round(BASE + dx + D * k);
+  sombra(g, xa + OX + 10, dy); sombra(g, rx + SW - OX - 10, dy);
+  poner(g, sprite(rival, rPose, { alt }), rx, y0, true);
   if (rPose === "rendido") {
     // gota de sudor y, al principio, un «!»
-    const cx = espejoX(7), cy = Y0 + OY + 3;
+    const cx = espejoX(7), cy = y0 + OY + 3;
     g.fillStyle = K; g.fillRect(cx - 1, cy, 3, 4); g.fillStyle = "#7DD3FC"; g.fillRect(cx, cy + 1, 1, 2);
-    if (Tm < 1700) { const ex = espejoX(11), ey = Y0 + OY - 9; g.fillStyle = K; g.fillRect(ex - 1, ey - 1, 3, 8); g.fillStyle = "#FBBF24"; g.fillRect(ex, ey, 1, 4); g.fillRect(ex, ey + 5, 1, 1); }
+    if (Tm < 1700) { const ex = espejoX(11), ey = y0 + OY - 9; g.fillStyle = K; g.fillRect(ex - 1, ey - 1, 3, 8); g.fillStyle = "#FBBF24"; g.fillRect(ex, ey, 1, 4); g.fillRect(ex, ey + 5, 1, 1); }
     // el arma (o las dos) vuela en arco y queda clavada detrás
     if (TIENE_ARMA(rival)) {
       const piezas = [0];
       piezas.forEach((i) => {
         const q = Math.max(0, Math.min(1, vuela - i * 0.12));
-        const fx = Math.min(W - 8, manoR[0] + 18 + i * 6), fy = SUELO - 4;
+        const fx = Math.min(W - 8, manoR[0] + 18 + i * 6), fy = SUELO - 4 + dy;
         const x = lerp(manoR[0], fx, q), y = lerp(manoR[1], fy, q) - Math.sin(Math.PI * q) * 22;
         const giro = q < 1 ? q * Math.PI * 4 : Math.PI * 0.62;  // gira en el aire; al final, clavada en diagonal
         g.save(); g.translate(Math.round(x), Math.round(y)); g.rotate(giro); g.drawImage(armaSuelta(rival), -14, -14); g.restore();
       });
     }
   }
-  poner(g, sprite(yo, pose, { sinMano: yo.arma === "cohete" && vuelo >= 0 }), xa, Y0 - bob, false);
-  if (yo.raices && (vuelo >= 0 || f >= 0)) ramas(g, xa + OX + 16, objetivo, f >= 0 ? 1 : vuelo, 1, Y0 + OY + py);
-  if (vuelo >= 0 && DISPARA[yo.arma] && !yo.raices) disparo(g, yo, lerp(xa + OX + px, objetivo, vuelo), Y0 + OY + py - (yo.arma === "pocion" ? Math.sin(Math.PI * vuelo) * 14 : 0), 1);
-  if (f >= 0 && yo.arma === "pocion") humo(g, objetivo, Y0 + OY + py, f);
-  if (f >= 0) chispa(g, objetivo, Y0 + OY + py, f, yo.orbe || "#FBBF24");
-  if (yo.arma === "naipes" && f >= 1) chispa(g, objetivo + 1, Y0 + OY + py + 5, f - 1);
+  poner(g, sprite(yo, pose, { sinMano: yo.arma === "cohete" && vuelo >= 0 }), xa, y0 - bob, false);
+  if (yo.raices && (vuelo >= 0 || f >= 0)) ramas(g, xa + OX + 16, objetivo, f >= 0 ? 1 : vuelo, 1, y0 + OY + py);
+  if (vuelo >= 0 && DISPARA[yo.arma] && !yo.raices) disparo(g, yo, lerp(xa + OX + px, objetivo, vuelo), y0 + OY + py - (yo.arma === "pocion" ? Math.sin(Math.PI * vuelo) * 14 : 0), 1);
+  if (f >= 0 && yo.arma === "pocion") humo(g, objetivo, y0 + OY + py, f);
+  if (f >= 0) chispa(g, objetivo, y0 + OY + py, f, yo.orbe || "#FBBF24");
+  if (yo.arma === "naipes" && f >= 1) chispa(g, objetivo + 1, y0 + OY + py + 5, f - 1);
   if (Tm >= 1900) {
     const s = Math.floor(Tm / 200) % 3; g.fillStyle = "#FBBF24";
-    [[xa + 12, Y0 + 4], [xa + 26, Y0 + 8], [xa + 6, Y0 + 12]].forEach(([x, y], i) => { if (i !== s) { g.fillRect(x, y, 1, 3); g.fillRect(x - 1, y + 1, 3, 1); } });
+    [[xa + 12, y0 + 4], [xa + 26, y0 + 8], [xa + 6, y0 + 12]].forEach(([x, y], i) => { if (i !== s) { g.fillRect(x, y, 1, 3); g.fillRect(x - 1, y + 1, 3, 1); } });
   }
   g.restore();
+}
+
+/* Modo equipos: dos contra dos. La pareja de atrás pelea un poco más arriba y
+   un poco desfasada; la de adelante, igual que en el duelo de uno contra uno. */
+const ATRAS = -8, ADENTRO = 16
+function escenaDuelo2(g, t, [a1, a2], [b1, b2]) {
+  fondo(g)
+  escenaDuelo(g, t + 220, a2, b2, { conFondo: false, dy: ATRAS, dx: ADENTRO })
+  escenaDuelo(g, t, a1, b1, { conFondo: false })
+}
+function escenaGana2(g, t, [a1, a2], [b1, b2]) {
+  fondo(g)
+  escenaGana(g, Math.max(0, t - 160), a2, b2, { conFondo: false, dy: ATRAS, dx: ADENTRO })
+  escenaGana(g, t, a1, b1, { conFondo: false })
 }
 
 /* ======================= PODIO ======================= */
@@ -968,7 +984,7 @@ function escenaAplauso(g, t, c) {
 }
 
 
-export { T as HEROES, sprite, escenaDuelo, escenaGana, escenaPodio, escenaAplauso, OX, OY }
+export { T as HEROES, sprite, escenaDuelo, escenaGana, escenaDuelo2, escenaGana2, escenaPodio, escenaAplauso, OX, OY }
 export const heroOf = (id) => T.find((c) => c.id === id) || null
 /* Para quien todavía no eligió: uno fijo según su id, así no cambia entre pantallas. */
 export function heroFor(id, chosen) {

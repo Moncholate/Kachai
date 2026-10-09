@@ -11,18 +11,20 @@
 export const TEAM_MIN = 2
 export const TEAM_MAX = 6
 
-/* Clases literales para que Tailwind las encuentre. */
+/* Gremios y órdenes clásicos de RPG, como los personajes (9-oct-2026).
+   El id es interno y se quedó con el nombre de antes (animales); lo que se ve
+   es el nombre y el emoji. Clases literales para que Tailwind las encuentre. */
 export const TEAM_PRESETS = [
-  { id: 'foxes', emoji: '🦊', name: 'Foxes', tint: 'bg-orange-50', border: 'border-orange-400', solid: 'bg-orange-500' },
-  { id: 'pandas', emoji: '🐼', name: 'Pandas', tint: 'bg-slate-100', border: 'border-slate-500', solid: 'bg-slate-700' },
-  { id: 'dolphins', emoji: '🐬', name: 'Dolphins', tint: 'bg-sky-50', border: 'border-sky-400', solid: 'bg-sky-500' },
-  { id: 'frogs', emoji: '🐸', name: 'Frogs', tint: 'bg-green-50', border: 'border-green-500', solid: 'bg-green-600' },
-  { id: 'owls', emoji: '🦉', name: 'Owls', tint: 'bg-violet-50', border: 'border-violet-400', solid: 'bg-violet-600' },
-  { id: 'lions', emoji: '🦁', name: 'Lions', tint: 'bg-amber-50', border: 'border-amber-400', solid: 'bg-amber-500' },
-  { id: 'octopuses', emoji: '🐙', name: 'Octopuses', tint: 'bg-pink-50', border: 'border-pink-400', solid: 'bg-pink-500' },
-  { id: 'tigers', emoji: '🐯', name: 'Tigers', tint: 'bg-yellow-50', border: 'border-yellow-400', solid: 'bg-yellow-500' },
-  { id: 'unicorns', emoji: '🦄', name: 'Unicorns', tint: 'bg-fuchsia-50', border: 'border-fuchsia-400', solid: 'bg-fuchsia-500' },
-  { id: 'penguins', emoji: '🐧', name: 'Penguins', tint: 'bg-cyan-50', border: 'border-cyan-400', solid: 'bg-cyan-600' },
+  { id: 'foxes', emoji: '⚔️', name: 'Adventurers', tint: 'bg-orange-50', border: 'border-orange-400', solid: 'bg-orange-500' },
+  { id: 'pandas', emoji: '🛡️', name: 'Knights', tint: 'bg-slate-100', border: 'border-slate-500', solid: 'bg-slate-700' },
+  { id: 'dolphins', emoji: '🧭', name: 'Explorers', tint: 'bg-sky-50', border: 'border-sky-400', solid: 'bg-sky-500' },
+  { id: 'frogs', emoji: '🌿', name: 'Druids', tint: 'bg-green-50', border: 'border-green-500', solid: 'bg-green-600' },
+  { id: 'owls', emoji: '🔮', name: 'Mages', tint: 'bg-violet-50', border: 'border-violet-400', solid: 'bg-violet-600' },
+  { id: 'lions', emoji: '💰', name: 'Merchants', tint: 'bg-amber-50', border: 'border-amber-400', solid: 'bg-amber-500' },
+  { id: 'octopuses', emoji: '🎵', name: 'Bards', tint: 'bg-pink-50', border: 'border-pink-400', solid: 'bg-pink-500' },
+  { id: 'tigers', emoji: '⚒️', name: 'Blacksmiths', tint: 'bg-yellow-50', border: 'border-yellow-400', solid: 'bg-yellow-500' },
+  { id: 'unicorns', emoji: '🏹', name: 'Hunters', tint: 'bg-fuchsia-50', border: 'border-fuchsia-400', solid: 'bg-fuchsia-500' },
+  { id: 'penguins', emoji: '✨', name: 'Healers', tint: 'bg-cyan-50', border: 'border-cyan-400', solid: 'bg-cyan-600' },
 ]
 export const MAX_TEAMS = TEAM_PRESETS.length
 

@@ -30,8 +30,8 @@ describe('textos en español e inglés', () => {
 
   it('el equipo se traduce, salvo que el profesor le haya puesto otro nombre', () => {
     const t = (k, ...a) => traducir('es', k, ...a)
-    expect(nombreEquipo(t, 'foxes', { name: 'Foxes' })).toBe('Zorros')
-    expect(nombreEquipo(t, 'foxes', { name: 'Los Cracks' })).toBe('Los Cracks')
+    expect(nombreEquipo(t, 'foxes', { name: 'Adventurers' })).toBe('Aventureros')
+    expect(nombreEquipo(t, 'foxes', { name: 'Adventurers' })).toBe('Aventureros')
   })
 
   it('los errores del editor salen en el idioma pedido, y en español sin idioma', () => {

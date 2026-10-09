@@ -34,7 +34,7 @@ describe('teams', () => {
     const teams = makeTeams(3)
     const scores = { a: { total: 900, gain: 900 }, b: { total: 700, gain: 100 }, c: { total: 1000 }, d: { total: 500 }, e: {} }
     const ranking = teamRanking(teams, players, scores)
-    // Foxes (900 + 700) / 2 = 800 le gana a Pandas (1000 + 500 + 0) / 3 = 500, aunque sumen igual
+    // Aventureros (900 + 700) / 2 = 800 le gana a Caballeros (1000 + 500 + 0) / 3 = 500, aunque sumen igual
     expect(ranking.map((t) => [t.id, t.total])).toEqual([['foxes', 800], ['pandas', 500]])
     expect(ranking[0].gain).toBe(500)
     // Dolphins no tiene integrantes: no compite

@@ -186,8 +186,13 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
   let body
   if (state.phase === 'lobby') {
     const waiting = teamMode
-      ? <TeamLobby profile={profile} pid={pid} meta={meta} teams={teams} players={players}
-          onPick={(team) => store.update(`${base}/players/${pid}`, { team })} />
+      ? (
+        <>
+          <TeamLobby profile={profile} pid={pid} meta={meta} teams={teams} players={players}
+            onPick={(team) => store.update(`${base}/players/${pid}`, { team })} />
+          <HeroPicker value={me.id} onPick={pickHero} />
+        </>
+      )
       : (
         <Message emoji="✅" title={t('estasDentro', profile.name)}>
           {t('miraPantallaEmpieza')}
@@ -240,6 +245,7 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
   } else if (state.phase === 'leaderboard' && myTeam) {
     body = (
       <Message emoji={myTeam.emoji} title={myTeamPlace ? t('tuEquipoEs', myTeamPlace) : t('ranking')}>
+        <HeroTeamDuelScene board={state.board} team={myTeam.id} pid={pid} me={me} players={players} round={state.qIndex} />
         {t('puntosEquipo', myTeam.name, teamRank[myTeamPlace - 1]?.total ?? 0)}
         <span className="block mt-1 text-sm">{t('tuPuntaje', score?.total ?? 0)}</span>
         <DuelNote board={state.board} id={myTeam.id} team />
@@ -266,14 +272,14 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
             : <FinalPosition score={score} />}
         </EndTabs>
       )
-      : !myTeam && score?.rank <= 3 && stage[['first', 'second', 'third'][score.rank - 1]]
+      : (myTeam ? myTeamPlace : score?.rank) <= 3 && stage[['first', 'second', 'third'][(myTeam ? myTeamPlace : score.rank) - 1]]
         ? (
-          <Message title={t('quedastePuesto', score.rank)}>
-            <HeroPodium key="podio" me={me} place={score.rank} />
+          <Message title={myTeam ? t('equipoQuedoPuesto', myTeamPlace) : t('quedastePuesto', score.rank)}>
+            <HeroPodium key="podio" me={me} place={myTeam ? myTeamPlace : score.rank} />
             <i className="block mt-3">{me.nombre}: “{me.frase}”</i>
           </Message>
         )
-        : !myTeam && stage.third
+        : stage.third
           ? (
             <Message title={t('aplaudeGanadores')}>
               <HeroApplause me={me} />
@@ -360,6 +366,24 @@ function HeroDuelScene({ board, pid, me }) {
   if (duel) return <div className="mb-3"><HeroDuel me={me} rival={heroFor(duel.rival, duel.rivalHero)} /></div>
   if (lost) return <div className="mb-3"><HeroDuel me={me} rival={heroFor(lost.who.id, lost.who.hero)} /></div>
   return null
+}
+
+/* Modo equipos: dos contra dos. Siempre apareces tú; tu compañero y la pareja
+   rival van rotando entre los integrantes, una vez por pregunta. */
+function HeroTeamDuelScene({ board, team, pid, me, players, round = 0 }) {
+  const overtakes = board?.overtakes ? Object.values(board.overtakes) : []
+  const passed = overtakes.find((o) => o.who.id === team)
+  const lost = overtakes.find((o) => o.over.id === team)
+  const duel = board?.personal?.[team]
+  const rivalTeam = passed ? passed.over.id : duel ? duel.rivalId : lost ? lost.who.id : null
+  if (!rivalTeam) return null
+  const heroDe = (id) => heroFor(id, players[id]?.hero)
+  const mates = membersOf(team, players).filter((id) => id !== pid).sort()
+  const rivals = membersOf(rivalTeam, players).sort()
+  if (!rivals.length) return null
+  const mios = mates.length ? [me, heroDe(mates[round % mates.length])] : [me]
+  const ellos = rivals.length > 1 ? [heroDe(rivals[round % rivals.length]), heroDe(rivals[(round + 1) % rivals.length])] : [heroDe(rivals[0])]
+  return <div className="mb-3"><HeroDuel me={mios} rival={ellos} won={Boolean(passed)} /></div>
 }
 
 /* El duelo personal en el ranking (ver game/duels.js): adelantamientos de esta

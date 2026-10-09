@@ -23,10 +23,10 @@ describe('duelos', () => {
 
   it('cada celular tiene su desafío: alcanzar al de arriba o defenderse del de abajo', () => {
     const p = personalDuels([r('a', 3000), r('b', 2900), r('c', 1000), r('d', 950), r('e', 100)])
-    expect(p.a).toEqual({ rival: 'B', gap: 100, ahead: false })
-    expect(p.b).toEqual({ rival: 'A', gap: 100, ahead: true })
-    expect(p.c).toEqual({ rival: 'D', gap: 50, ahead: false })
-    expect(p.d).toEqual({ rival: 'C', gap: 50, ahead: true })
+    expect(p.a).toEqual({ rival: 'B', rivalId: 'b', gap: 100, ahead: false })
+    expect(p.b).toEqual({ rival: 'A', rivalId: 'a', gap: 100, ahead: true })
+    expect(p.c).toEqual({ rival: 'D', rivalId: 'd', gap: 50, ahead: false })
+    expect(p.d).toEqual({ rival: 'C', rivalId: 'c', gap: 50, ahead: true })
     expect(p.e).toBeUndefined()
   })
 
@@ -44,6 +44,6 @@ describe('duelos', () => {
     const ranking = [r('a', 2000), r('b', 1300)]
     expect(buildBoard(ranking, null, true).finalDuel).toBe(null)
     expect(buildBoard(ranking, null, true, 1000).finalDuel.gap).toBe(700)
-    expect(buildBoard(ranking, null, true, 1000).personal.b).toEqual({ rival: 'A', gap: 700, ahead: true })
+    expect(buildBoard(ranking, null, true, 1000).personal.b).toEqual({ rival: 'A', rivalId: 'a', gap: 700, ahead: true })
   })
 })

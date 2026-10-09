@@ -48,8 +48,8 @@ export function personalDuels(ranking, reach = DUEL_GAP) {
   ranking.forEach((me, i) => {
     const ahead = ranking[i - 1]
     const behind = ranking[i + 1]
-    if (ahead && ahead.total > 0 && ahead.total - me.total < reach) out[me.id] = { rival: ahead.name, gap: ahead.total - me.total, ahead: true, ...(ahead.hero ? { rivalHero: ahead.hero } : {}) }
-    else if (behind && me.total > 0 && me.total - behind.total < reach) out[me.id] = { rival: behind.name, gap: me.total - behind.total, ahead: false, ...(behind.hero ? { rivalHero: behind.hero } : {}) }
+    if (ahead && ahead.total > 0 && ahead.total - me.total < reach) out[me.id] = { rival: ahead.name, gap: ahead.total - me.total, ahead: true, rivalId: ahead.id, ...(ahead.hero ? { rivalHero: ahead.hero } : {}) }
+    else if (behind && me.total > 0 && me.total - behind.total < reach) out[me.id] = { rival: behind.name, gap: me.total - behind.total, ahead: false, rivalId: behind.id, ...(behind.hero ? { rivalHero: behind.hero } : {}) }
   })
   return out
 }
