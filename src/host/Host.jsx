@@ -1243,12 +1243,16 @@ function Reveal({ state, isLast, ranking, image, onNext }) {
       </p>
       {state.practice && <PracticePoints ranking={ranking} />}
       <div className="flex justify-center">
-        <Button onClick={onNext}>{t(nextLabel(state, isLast))}</Button>
+        <Button onClick={onNext} className={SIGUIENTE}>{t(nextLabel(state, isLast))}</Button>
       </div>
     </section>
   )
 }
 
+/* El botón para seguir después de los resultados (Ver ranking, Ver podio):
+   al lado de la pregunta en letra gigante, el tamaño normal se perdía y la
+   profesora lo buscaba (9-oct-2026). */
+const SIGUIENTE = '!text-2xl !px-10 !py-4 !rounded-2xl shadow-lg'
 const nextLabel = (state, isLast) => (state.practice ? 'aJugar' : isLast ? 'verPodio' : 'verRanking')
 
 /* Opción múltiple en el proyector: las alternativas con su color y figura, igual
@@ -1324,7 +1328,7 @@ function ChoiceReveal({ state, isLast, ranking, image, onNext }) {
         </p>
         {state.practice && <PracticePoints ranking={ranking} />}
         <div className="flex justify-center">
-          <Button onClick={onNext}>{t(nextLabel(state, isLast))}</Button>
+          <Button onClick={onNext} className={SIGUIENTE}>{t(nextLabel(state, isLast))}</Button>
         </div>
       </PictureLayout>
     ) : (
@@ -1336,7 +1340,7 @@ function ChoiceReveal({ state, isLast, ranking, image, onNext }) {
         </p>
         {state.practice && <PracticePoints ranking={ranking} />}
         <div className="flex justify-center">
-          <Button onClick={onNext}>{t(nextLabel(state, isLast))}</Button>
+          <Button onClick={onNext} className={SIGUIENTE}>{t(nextLabel(state, isLast))}</Button>
         </div>
       </section>
     )
