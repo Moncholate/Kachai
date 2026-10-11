@@ -1,967 +1,30 @@
 /* ============================================================================
-   PERSONAJES DE KACHAI (pixel art estilo SNES)
+   PERSONAJES DE KACHAI (pixel art estilo SNES, en tres cuartos)
    ----------------------------------------------------------------------------
-   Diez personajes que cada alumno elige al entrar. Aparecen en su celular en los
-   duelos del ranking y en el podio. Todo se dibuja en canvas desde estas
-   grillas: no hay imágenes que descargar.
+   Quince personajes que cada alumno elige al entrar. Aparecen en su celular en
+   los duelos del ranking, en el podio y aplaudiendo. Todo se dibuja en canvas.
+   El motor y los diseños están en heroesHD.js (se armaron uno a uno con la
+   profesora en la página «Personajes mejorados», oct-2026). Los diseños
+   anteriores quedan guardados en heroesClasicos.js como referencia.
 
-   Reglas de la profesora (9-oct-2026):
-     · nada de violencia: ganar es DESARMAR. El arma del rival vuela y queda
-       clavada atrás; el rival se queda de pie con la mano arriba.
+   Reglas de la profesora:
+     · nada de violencia: ganar es DESARMAR (el arma vuela y queda en el suelo;
+       el rival queda de pie con las manos arriba). Algunos ganan a su manera:
+       Malala lo convierte en sapo, Janet le clava el arma en el borde con una
+       flecha, el oso de Xitin lo hace huir, Jelic lo deja viendo estrellas y
+       Agattita lo atrapa con enredaderas y le brota una flor.
      · en el podio, quien gana celebra y el resto aplaude.
-   Diseñados uno a uno con ella en https://claude.ai/artifact/WamiieSm4U8CyJ1dktJWC4
    ========================================================================== */
-/* ======================= PERSONAJES =======================
-   Cada uno: 24 × 30, mirando a la derecha. K = contorno. El brazo de adelante
-   y el arma se dibujan aparte, según la pose. */
-const K = "#1A1020";
-const T = [
-{ id: "latte", nombre: "Latte", clase: "Trickster", desc: "Pelo cobrizo, chistera de mago con un naipe en la cinta, chaqueta color café con leche y una baraja que nunca se le acaba. Lanza los naipes de dos en dos.", frase: "Catch me if you can!",
-  arma: "naipes", brazo: "J", mano: "R",
-  guardia: { mano: [15, 21], dir: [0, -1] },
-  pal: { T: "#24212C", t: "#3E3A4C", Y: "#C0263A", H: "#B5512A", h: "#7E3418", C: "#2F4A3A", c: "#1C2E24", V: "#5C8A68", Q: "#24392D", q: "#15231B", S: "#D9A27A", s: "#A8714C", X: "#45393F", W: "#F4F1E8",
-         J: "#B9804A", j: "#85562E", L: "#EAD7B7", B: "#4A2E22", G: "#D4AF4F", P: "#3B4660", b: "#2A2230", R: "#3E6E78" },
-  grid: [
-  "......KKKKKKK...........",
-  "......KTtTTTK...........",
-  "......KTtTTTK...........",
-  "......KTtTWYK...........",
-  "......KYYYWWK...........",
-  "...KKKKTTTTTKKKK........",
-  "..KTTTTTTTTTTTTTK.......",
-  "...KHHHHHHHHHHHK........",
-  "..KHHhHHKSSSSSSK........",
-  "..KHhHHKSSSSSKWSK.......",
-  "..KHhHKSSSSSSKKSK.......",
-  "...KhHKXSSSSSSSSK.......",
-  "...KKHKXXSSSXXXK........",
-  "....KKKKXXXXXXK.........",
-  "...KKKKKLLKKKK..........",
-  ".KQQKKKLLLLLJK..........",
-  "KQQqKJJJLLLJJJK.........",
-  "KQqQKJJJJLJJJJJK........",
-  "KQqQKjJBJLJJJJJK........",
-  "KQqQKjJJBJJJJJJK........",
-  "KQqQKjBBBGBBBBBK........",
-  "KQqQKKjJJJJJBJJK........",
-  "KQqQKjJJJJjKJJjK........",
-  "KQqQKjjjjjK.KjjK........",
-  "KqQQKKPPPK..KPPK........",
-  ".KqQQKPPPK..KPPK........",
-  ".KqqqKbbbK..KbbK........",
-  "..KKKKbbbK..KbbbK.......",
-  "....KbbbbbK.KbbbbK......",
-  ".....KKKKK...KKKKK......"] },
+import { HEROES as CLASICOS } from './heroesClasicos.js'
+import { HD_POR_ID, HD_BASE_POR_ID, hdDibujar, hdPose, HD_OX, HD_OY, HDK, sapoMalala, flechaJanet, pajaritos, enredaRival, florCabeza, hombreraOso } from './heroesHD.js'
 
-{ id: "agattita", nombre: "Agattita", clase: "Druida", desc: "Gata atigrada de ojos enormes. Levanta su bastón en espiral y del suelo brotan enredaderas con espinas.", frase: "Purr-fect answer!",
-  hombro: [14, 17],
-  arma: "baculo", espiral: true, raices: true, poses: { ataque: { mano: [16, 14], dir: [0, -1] } }, brazo: "A", mano: "W", orbe: "#4ADE80",
-  pal: { F: "#8C7B6A", f: "#4F4236", Z: "#B5A592", W: "#F6F0E6", w: "#D9CDBB", I: "#E7A9A0", N: "#E39A86",
-         O: "#D8DEE8", M: "#34D399", G: "#2F6B45", H: "#1E4A2F", A: "#8FA6AE", a: "#62777F", B: "#7A4A2A", b: "#55331C", T: "#2F6B45" },
-  grid: [
-  "....KK.........KK.......",
-  "....KIK.......KIFK......",
-  "....KIFK.....KFIFK......",
-  "...KFIfFKKKKKFfIFK......",
-  "...KFFFOOOOOOOFFFK......",
-  "..KFfFFFFOMOFFFFfFK.....",
-  "..KFFfFFfFFFfFFfFFK.....",
-  ".KFZFFfFFFfFFFfFFFFK....",
-  ".KFZFFFFFFFFFFFFFFFK....",
-  ".KFZFFFKKFFFFKKFFFFK....",
-  "KFFZFFFKWFFFFKWFFFFFK...",
-  "KFZFFFFKKFFFFKKFFFFFK...",
-  "KFZFfFWWWWNNWWWWFfFK....",
-  ".KFFFWWWWKWWKWWWFFK.....",
-  "..KFFFWWWWWWWWWFFK......",
-  "KK.KKFFWWWWWWFFKK.......",
-  "KFK.KGGGGGGGGGGK........",
-  "KfK.KGHGGGMGGGHGK.......",
-  "KFKKAKHGGGGGGGHGK.......",
-  "KfKAAKKWWWWWWKKK........",
-  "KFKaAKFWwWWwWFK.........",
-  "KfFKaKFFWWWWWFK.........",
-  ".KFfKKBBBBBBBBBK........",
-  "..KFKTBbBBBBBBbBK.......",
-  "...KKTTTTWWWWTTTTK......",
-  "....KTTFWWWWFTTK........",
-  ".....KFFWWWFFFK.........",
-  ".....KFfK..KfFK.........",
-  "....KWWWWK.KWWWWK.......",
-  ".....KKKK...KKKK........"] },
+const K = HDK
 
-{ id: "malala", nombre: "Malala", clase: "Bruja", desc: "Pelo oscuro, sombrero gigante con borlas y vestido cuadrillé verde y blanco, como el delantal de las tías del jardín. Nadie le ha visto los ojos.", frase: "Hands up, everybody!",
-  arma: "baculo", escoba: true, brazo: "V", mano: "S", orbe: "#A7F3D0",
-  pal: { H: "#1F4D3A", h: "#12301F", Y: "#D9A13B", L: "#3A2A30", l: "#5E4A56", S: "#F4D3BE", s: "#D4A58C", D: "#1F4D3A",
-         C: "#E9E2CF", c: "#C4B999", E: "#14B8A6", V: "#5FB383", b: "#1A1020",
-         Q: (x, y) => { const i = (x >> 1) & 1, j = (y >> 1) & 1; return i && j ? "#2E8B57" : i || j ? "#86CFA0" : "#F4F8F2"; } },
-  grid: [
-  "...................KK...",
-  "..............KKKKHHK...",
-  ".............KHHHHKK....",
-  "............KHHhK.......",
-  "...........KHHhK........",
-  "..........KHHHhK........",
-  ".........KHHHHhK........",
-  "........KHHYYYYK........",
-  "...KKKKKHHHHHHHHKKKKK...",
-  "..KhhhhhhhhhhhhhhhhhhK..",
-  "...KYKKYKKYKKYKKYKKYK...",
-  "...Y.KLLLLLLLLLLK.Y..Y..",
-  "....KLLLlLLLLLLLLK......",
-  "....KLLlLLLLLLLLLK......",
-  "....KLlLLLlLLlLLLK......",
-  "....KLlLKSSSSSSSK.......",
-  "....KLlLKSSSKKSK........",
-  "....KLLKKDDDDDKK........",
-  "...KCKYYYYYYYYYK........",
-  "..KCCKYYYYYYYYYK........",
-  "..KCCCKYYYEYYYK.........",
-  "..KCcCKQQQQQQQK.........",
-  "..KCcCKQQQQQQQQK........",
-  ".KCCcKYDYDYDYDYK........",
-  ".KCcCKQQQQQQQQQQK.......",
-  "KCCcKQQQQQQQQQQQK.......",
-  "KCcCKQQQQQQQQQQQQK......",
-  "KccKQQQQQQQQQQQQQK......",
-  ".KKKKKbbKKKKKbbKKK......",
-  ".....KKK.....KKK........"] },
-
-{ id: "malia", nombre: "Malía", clase: "Chef", desc: "Elfa de moño blanco y delantal impecable. Pelea con un cucharón gigante de madera y nunca se le quema nada.", frase: "Dinner is served!",
-  arma: "cucharon", brazo: "B", mano: "S",
-  pal: { H: "#E8EAF0", h: "#AEB5C6", W: "#F2F0EA", w: "#CFCBC0", B: "#CDB898", b: "#A8946F", S: "#EBB2A6", s: "#C7867A",
-         N: "#24212B", n: "#3A3644", D: "#8A5A2A", Y: "#C9A24B", E: "#2F6B45" },
-  grid: [
-  "........................",
-  "......KKKK..............",
-  ".....KHHHHK.............",
-  ".....KHhHHK.............",
-  "....KKWKWKWKK...........",
-  "...KWWWWWWWWWK..........",
-  "...KHHHHHHHHHHK.........",
-  "..KHHhHHHHHHHHHK........",
-  "..KHhHHHHHHHHHHK........",
-  "KKKHhHHKSSSSSHHK........",
-  "KSSKhHKSSSSSSSHK........",
-  ".KSSKHKSSSSSKESK........",
-  "..KSSKKSSSSSKKSK........",
-  "...KKHKsSSSSSSSK........",
-  "....KHKsSSSSKKSK........",
-  ".....KKKssSSSSK.........",
-  "......KBBKKKK...........",
-  ".....KBBBBWWWK..........",
-  "....KBBBBBWWWWK.........",
-  "....KBBBBBWWwWK.........",
-  "....KBBBBBWWWWK.........",
-  "....KBBBBDDDDDDK........",
-  "....KNNNWWDDDWWK........",
-  "....KNNNWWWWWWWK........",
-  "...KNNKWWWwWWWWWK.......",
-  "...KNNKWWWWWWWWWK.......",
-  "..KNNNKWWWWWwWWWWK......",
-  "..KNNNNKWWWWWWWWNK......",
-  ".KNYNNNNYNNNNYNNNNK.....",
-  "..KKKKKKKKKKKKKKKK......"] },
-
-{ id: "kenny", nombre: "Kenny", clase: "Bardo", desc: "Pelo largo amarrado en una cola, barba, lentes de sol y bufanda turquesa. Toca el laúd tan fuerte que sus notas musicales desarman a cualquiera.", frase: "Sing it with me!",
-  arma: "laud", brazo: "J", mano: "S",
-  hombro: [13, 18],
-  poses: { guardia: { mano: [12, 22], dir: [0, -1] }, ataque: { mano: [12, 21], dir: [0, -1] }, alzada: { mano: [19, 15], dir: [0, -1] } },
-  pal: { F: "#22222E", W: "#FFFFFF", Q: "#7DD3FC", H: "#3B2618", h: "#22150C", S: "#D6A27C", s: "#AE7655", D: "#6B4426", T: "#1C8C85", t: "#12645F", C: "#C0622B", c: "#8A421B",
-         J: "#7A4E2C", G: "#5E8F4E", B: "#4A2E22", Y: "#C9A24B", P: "#6B4A30", b: "#3A2418" },
-  grid: [
-  "........................",
-  ".........KKKKKK.........",
-  ".......KKHHHHHHKK.......",
-  "......KHHhHHHHHHHK......",
-  ".....KHHhHHHHHHHHHK.....",
-  ".....KHhHHHHHHHHHHHK....",
-  "....KHHhHHHKKSSSHHHK....",
-  "....KHhHHHKSSSSSSSHK....",
-  "..KYYKhHHKSSSSSSSSSK....",
-  "..KHhKKHKSFFFFFWFFK.....",
-  ".KHhK.KHKSSSSSFFQFK.....",
-  ".KHhK.KHKsSSSSSSSSK.....",
-  ".KhHK.KHKDDSSSSSSDK.....",
-  "KhHK.KHDDDDDDKKDDK......",
-  "KHhK..KHDDDDDDDDK.......",
-  ".KK....KDDDDDDDK........",
-  ".....KKCCTTTTTTTK.......",
-  "....KCCTTTTtTTTTTK......",
-  "....KCCKTTTTTTTTTK......",
-  "...KCCcKJJJJGGJJJK......",
-  "...KCcCKJJJGGGJJJK......",
-  "...KCcCKBBBBBYBBBK......",
-  "...KCcCKJJGGGGGJJK......",
-  "...KCcCKJJGGGGGJJK......",
-  "...KCcCKKPPPK.KPPK......",
-  "...KccCCKPPPK.KPPK......",
-  "....KccKKbbbK.KbbK......",
-  ".....KK.KbbbK.KbbbK.....",
-  ".......KbbbbbK.KbbbbK...",
-  "........KKKKK...KKKKK..."] },
-
-{ id: "tivan", nombre: "Tiván", clase: "Alquimista", desc: "Pelo canoso alborotado, antiparras de bronce sobre el pelo, cuello alto, abrigo largo y una bandolera llena de frascos. Lanza pociones que estallan en humo verde.", frase: "Don't drink that!",
-  arma: "pocion", brazo: "W", mano: "U",
-  pal: { H: "#C4C8D2", h: "#868C9C", E: "#5A3A22", Q: "#9BD8F0", S: "#C99470", s: "#9E6B4B", O: "#6E6A3A", o: "#4C4826", W: "#EEF0F2", B: "#5A3A22",
-         V: "#4ADE80", Z: "#E6F6FF", F: "#15121A", D: "#4A2E22", G: "#C9A24B", U: "#7A5232", P: "#5A3A28", b: "#221A20" },
-  grid: [
-  "...K...K...K............",
-  "..KHK.KHK.KHK...........",
-  ".KHhHKHhHKHhHK..........",
-  "KHhHHHHHHHHHHHK.........",
-  ".KHhHHHHHHHHHHHK........",
-  "KHhHHHHKKKKKKKKKK.......",
-  ".KhHEEEKGQGKGQGKK.......",
-  "..KhHHHKKKKKKKKKK.......",
-  "..KHhHHHKSSSSSSSHK......",
-  ".KKHhHHKSSSSSSKSK.......",
-  "..KKhHHKSSSSSSKSK.......",
-  "...KKhKsSSSSSSSSK.......",
-  "....KKKsSSSSSKKSK.......",
-  "....KOOKssSSSSSK........",
-  "...KOOOOKKssKKOK........",
-  "...KOOoOOKWWKOOOK.......",
-  "..KOOoOBVBVBVBOOK.......",
-  "..KOoOOOBBBBBBOOOK......",
-  "..KOoOOOOOOOOOOOOK......",
-  "..KOoOKDDDDGDDDDK.......",
-  "..KOoOKUUOOOUUOOK.......",
-  "..KOoOKOOOKPPKOOOK......",
-  "..KOoOKOOKPPPPKOOK......",
-  ".KOOoOKOOKPPPKOOOK......",
-  ".KOoOOKOOKPPKKOOOOK.....",
-  "KOOoOKOOOKPPKKOOOOK.....",
-  "KOoOKOOOOKbbKKOOOOOK....",
-  "KoooKKKKKKbbKKKoooOK....",
-  "....KbbGbbK.KbbGbbK.....",
-  ".....KKKKK...KKKKK......"] },
-
-{ id: "patroclus", nombre: "Patroclus", clase: "Scout", desc: "Moreno, pelo corto negro y un collar con piedra turquesa. La capucha verde con borde de piel le cae sobre los hombros. Camina con un bordón de madera con una cabeza de lobo tallada y el banderín de su patrulla.", frase: "Always be prepared!",
-  arma: "totem", brazo: "W", mano: "S",
-  pal: { G: "#3F6B3A", g: "#2A4A27", H: "#1A1518", h: "#3A3036", S: "#9A6440", s: "#74472B", N: "#F4E9C8", Z: "#2DD4BF", F: "#E9E4DA", f: "#BDB5A6", L: "#6E5134", l: "#4E3824",
-         W: "#E7E2D6", B: "#3A2418", Y: "#C9A24B", T: "#4F4A33", b: "#3A2A1E" },
-  grid: [
-  "........................",
-  "........................",
-  "........................",
-  ".......KKKKKKK..........",
-  ".....KKHHHHHHHKK........",
-  "....KHHHHHHHHHHHK.......",
-  "....KHhHHHHHHHHHK.......",
-  "...KHhHHHHHHHHHHK.......",
-  "...KHhHHHHSSSSSSK.......",
-  "...KHhHHKSSSSSSSK.......",
-  "...KHHHKSSSSSSKSK.......",
-  "...KKSKSSSSSSSSSK.......",
-  "....KSSKsSSSSSSSK.......",
-  "....KKsKsSSSSSSK........",
-  ".KGGGGGKKssSSK..........",
-  "KGGgGFFFNSSSNK..........",
-  "KFfFFFKLKNZNKLK.........",
-  "KGFfFKLLLKZKLLLK........",
-  "KGgFKLLLLlLLLLLK........",
-  "KGgGKLLLLLLLlLLK........",
-  "KGgGKBBBBYBBBBBK........",
-  "KGgGKLLLLLLLLLLK........",
-  "KGgGKTTTTTKTTTTK........",
-  "KGgGKTTTTK.KTTTK........",
-  "KggGKTTTK..KTTTK........",
-  ".KgGKTTTK..KTTTK........",
-  ".KggKFFFK..KFFFK........",
-  "..KKKbbbK..KbbbK........",
-  "....KbbbbbK.KbbbbbK.....",
-  ".....KKKKK...KKKKK......"] },
-
-{ id: "uchis", nombre: "Uchis", clase: "Pícara", desc: "Pelo castaño largo, diadema dorada y capa roja sobre una túnica con rombos turquesa y dorados. Lanza cuchillas antes de que termines de leer la pregunta.", frase: "Too slow!",
-  arma: "cuchillas", brazo: "C", mano: "U",
-  guardia: { mano: [15, 21], dir: [0.3, -0.95] },
-  pal: { H: "#7A4A2C", h: "#4E2E1A", S: "#F6DCCB", s: "#D7B09C", L: "#D9667A", G: "#E0B040", E: "#3B82F6",
-         R: "#D8402E", r: "#9E2A1E", C: "#F2E8D0", T: "#2F8F8A", Y: "#E0B040", B: "#8A5A30", U: "#9A6A3A", P: "#5A3426", b: "#A0503A" },
-  grid: [
-  "........................",
-  "........KKKKK...........",
-  "......KKHHHHHKK.........",
-  ".....KHHhHHHHHHK........",
-  "....KHhHHHHHHHHHK.......",
-  "...KHhHHHHHHHHHHHK......",
-  "...KHhHHHHHHGGEGGK......",
-  "..KHhHHHHHKKHHHHHK......",
-  "..KHhHHHHKSSSSSHHK......",
-  "..KHhHHHKSSSSSSSHK......",
-  ".KHhHHHKSSSSSKKSK.......",
-  ".KHhHHKSSSSSSKSSK.......",
-  ".KHhHHKsSSSSSSSK........",
-  ".KHhHHKsSSSSLSK.........",
-  ".KHhHHHKssSSSK..........",
-  ".KHhHHHHKRRKKK..........",
-  ".KHhKRRRRCCCCK..........",
-  ".KHhKRRCCCTTCCK.........",
-  ".KHhKRrCCCTYTCCK........",
-  "..KhKRrCCTYTYTCK........",
-  "...KKRrKBBBBBBBK........",
-  "...KRRrCCTYTYTCCK.......",
-  "..KRRrCCCTTYTTCCK.......",
-  "..KRrrKCCTTTTTCCK.......",
-  "..KRrRKKPPKKPPKK........",
-  "...KrRKPPPK.KPPK........",
-  "...KKKKPPK..KPPK........",
-  ".....KbbbK..KbbbK.......",
-  "....KbbbbbK.KbbbbbK.....",
-  ".....KKKKK...KKKKK......"] },
-
-{ id: "janet", nombre: "Janet", clase: "Elfo", desc: "Pelo largo castaño claro, barba y armadura de escamas como hojas. Dispara flechas desde lejos y casi nunca falla.", frase: "Right on target!",
-  arma: "arco", brazo: "L", mano: "S",
-  pal: { H: "#C9A577", h: "#9A7A50", S: "#F0D2BC", s: "#CFA88F", D: "#8A6640", W: "#EDEAE0", Q: "#6B4430", G: "#6B7A3A", g: "#4C5728",
-         L: "#3F5A3A", l: "#2C4029", B: "#3A2418", Y: "#C9A24B", T: "#4A4A3A", M: "#A9B2BF", m: "#7C8594" },
-  grid: [
-  "........................",
-  "........KKKKK...........",
-  "......KKHHHHHKK.........",
-  ".....KHHhHHHHHHK........",
-  "....KHhHHHHHHHHHK.......",
-  "...KHhHHHHHHHHHHHK......",
-  "...KHhHHHHHHHHHHHK......",
-  "..KHhHHHHHHKKHHHHK......",
-  "KKKHhHHHHKSSSSSHHK......",
-  "KSSKhHHHKSSSSSSSHK......",
-  ".KSSKhHKSSSSSKSSK.......",
-  "..KKHhHKSSSSSKSSK.......",
-  "..KHhHHKDSSSSSSSK.......",
-  ".KWKhHHKDDSSSDDK........",
-  ".KWKhHHHKDDDDDK.........",
-  ".KQKhHHKKKDDKK..........",
-  ".KQKhKGGGLLLGGK.........",
-  ".KQKKGLlLlLlGGGK........",
-  ".KQKGGlLlLlLGGGK........",
-  ".KQKGGGLlLlGGGGK........",
-  "..KKGGKBBBYBBBBK........",
-  "...KGgGGGGGGGGGK........",
-  "...KGgGGGGKGGGgK........",
-  "....KggggK.KgggK........",
-  ".....KTTTK..KTTK........",
-  ".....KMMMK..KMMK........",
-  ".....KMmMK..KMmK........",
-  ".....KMMMK..KMMMK.......",
-  "....KMMMMMK.KMMMMK......",
-  ".....KKKKK...KKKKK......"] },
-
-{ id: "jelic", nombre: "Jelic", clase: "Paladín", desc: "Armadura completa, penacho rojo y los colores azul y rojo de la U. No usa espada: embiste con su escudo.", frase: "Hold the line!",
-  arma: "escudo", brazo: "M", mano: "M",
-  guardia: { mano: [16, 20], dir: [0, -1] },
-  pal: { R: "#D7263D", r: "#9B1428", M: "#9AA3B2", m: "#646C7C", L: "#D9DEE8", A: "#1E3FAE", a: "#13297A",
-         S: "#A8714C", s: "#7E5236", W: "#E5E7EB", B: "#2A2440", O: "#E5E7EB" },
-  grid: [
-  "....RRRR................",
-  "...RRrRRRR..............",
-  "..Rr.RRKKKKK............",
-  ".Rr..KMMMMMMKK..........",
-  ".r..KMMLMMMMMMK.........",
-  "...KMMLMMMMMMMMK........",
-  "...KMLMMMMMMMMMK........",
-  "...KMMMMMKKKKKMMK.......",
-  "...KMMMMKSSSSSKMK.......",
-  "...KMmMKSSSSKSSKK.......",
-  "...KMmMKSSSSKSSK........",
-  "...KMmMKSSSWWWSK........",
-  "...KMmMKsSSSSSK.........",
-  "....KMmMKKssKK..........",
-  "...KKKMMMMMMK...........",
-  ".KAKMMMLAAAMMMK.........",
-  "KAAKMMLAARAAMMMK........",
-  "KAaKMMAARRRAAMMK........",
-  "KAaKMMAAARAAAMMK........",
-  "KAaKMMAAAAAAAMMK........",
-  "KAaKKBBBBOBBBBBK........",
-  "KAaKKRARARARARK.........",
-  "KAaKKARARARARAK.........",
-  "KAaK.KMMMK.KMMK.........",
-  "KaaK.KMMMK.KMMK.........",
-  ".KaK.KMLMK.KMLMK........",
-  ".KK..KMMMK.KMMMK........",
-  ".....KmmmK.KmmmK........",
-  "....KmmmmmKKmmmmmK......",
-  ".....KKKKK..KKKKKK......"] },
-{ id: "cupe", nombre: "Cupe", clase: "Noble", desc: "Perrito blanco de rizos y orejas enormes, con coronita de príncipe, levita gris con ribetes dorados y corbata de encaje. Pelea con florete, como todo noble.", frase: "En garde!",
-  hombro: [17, 16],
-  arma: "sable", brazo: "G", mano: "W",
-  pal: { W: "#F6F4EE", v: "#E9E3D6", w: "#D6CFC0", O: "#F2C230", R: "#D7263D", Z: "#FFFFFF", L: "#FFFFFF", G: "#8E939C", g: "#5F646E",
-         Y: "#C9A24B", B: "#7A5230", D: "#24212B" },
-  grid: [
-  "........O...O...O.......",
-  "........OO.OOO.OO.......",
-  "........OOOOOOOOO.......",
-  "......K.OROOROORO.K.....",
-  ".....KWKKKKKKKKKKKWK....",
-  "....KWWWWWWWWWWWWWWWK...",
-  "...KWWWWWWWWWWWWWWWWWK..",
-  "..KKWWWWWWWWWWWWWWWWKKK.",
-  ".KwwKWWWWWWWWWWWWWWKwwK.",
-  "KwwwKWWWWWKKWWKKWWWKwwwK",
-  "KwwwKWWWWWKKWWKKWWWKwwwK",
-  "KwwwKWWWWWWWKKWWWWWKwwwK",
-  "KwwwKWWWWWWKWWKWWWWKwwwK",
-  ".KwwKKWWWWWWWKKWWWKKwwK.",
-  "..KK..KKWWWWWWWWKK..KK..",
-  "......KGGKLLLLKGK.......",
-  ".....KGGYKBLLBKGGK......",
-  ".....KGgYKBYBBKYGGK.....",
-  "....KGGgYKBBYBKYGGK.....",
-  "....KGgGYKBYBBKYgGK.....",
-  "....KGgGYKBBBBKYgGK.....",
-  "....KGgGYKDDDDKYgGK.....",
-  "....KGgGYKDDKDDKYgGK....",
-  "....KGgGYKDDKDDKYGGK....",
-  "....KGgYYKDDKDDKYYGK....",
-  ".....KKKKKWWKWWKKKK.....",
-  "........KWWK.KWWK.......",
-  ".......KDDYK.KDDYK......",
-  "......KDDDDDKKDDDDDK....",
-  ".......KKKKK..KKKKKK...."] },
-{ id: "july", nombre: "July", clase: "Herrero", desc: "Alto, calvo y con barba blanca hasta el pecho. Delantal de cuero, brazos de forja y un martillo que pesa más que un yunque.", frase: "Strike while the iron is hot!",
-  arma: "martillo", brazo: "S", mano: "g",
-  pal: { S: "#D9A27A", s: "#A8714C", Z: "#F2CDA8", W: "#F2F2F2", w: "#C8C8D0", A: "#7A4A2A", Y: "#E8B830", B: "#8E2A20",
-         G: "#C9A24B", P: "#5A5E6A", M: "#A9B2BF", m: "#7C8594", b: "#4A3426", g: "#3A2A20" },
-  grid: [
-  "......KKKKKKK...........",
-  ".....KSZSSSSSK..........",
-  "....KSZZSSSSSSK.........",
-  "....KSSSSSSSSSSK........",
-  "....KSSSSSSSSSSK........",
-  "....KSSSSSSWWWSK........",
-  "...KSKSSSSSSKSSK........",
-  "...KsKSSSSSSKSSK........",
-  "....KSSSSSSSSSSSK.......",
-  "....KSWWWSSSSSWWK.......",
-  "....KWWWWWWWWWWWK.......",
-  "....KWWwWWWKKWWWK.......",
-  "....KWWWWWWWWWWK........",
-  ".....KWWwWWWWWWK........",
-  "......KWWWWWWK..........",
-  ".....KSKWWWWKK..........",
-  "....KSSSAAAAAAK.........",
-  "....KSsSSAAAAAAK........",
-  "....KSsSSAAAAAK.........",
-  "....KSsSSAAAAAK.........",
-  "....KSsYYYYYYYYK........",
-  "....KBBBBGBBBBBK........",
-  "....KAAAAAAAAAAK........",
-  "....KKAAAAAAAAK.........",
-  "....KPPK..KPPK..........",
-  "....KMMK..KMMK..........",
-  "....KMmK..KMmK..........",
-  "...KMMMMK.KMMMMK........",
-  "...KbbbbbKKbbbbbK.......",
-  "....KKKKK..KKKKKK......."] },
-{ id: "edith", nombre: "Edith", clase: "Warlock", desc: "Pelo negro largo y con rulos, túnica morada, hombrera de cráneo y un grimorio morado. Su grimorio flota a su lado y lanza rayos.", frase: "Here comes the storm!",
-  arma: "libro", rayo: true, brazo: "P", mano: "G", orbe: "#C4A7FF",
-  pal: { H: "#1E1A22", h: "#4A4256", S: "#F0D6C8", s: "#C9A898", L: "#9B2D5A", P: "#4E2A6E", p: "#341A4C", C: "#E8DFC4",
-         O: "#E9E1C8", B: "#2A1C30", Y: "#B8902A", b: "#1A1020", G: "#3A3A48" },
-  grid: [
-  "........................",
-  ".......KKKKKK...........",
-  ".....KKHhHHhHKK.........",
-  "....KHhHHhHHhHHK........",
-  "...KHHhHHHhHHHhHK.......",
-  "...KhHHHhHHHHHHHK.......",
-  "..KHHhHHHKKSSSHHK.......",
-  "..KhHHHHKSSSSSSHK.......",
-  ".KHHhHHKSSSSSSSHK.......",
-  ".KhHHHKSSSSSKSSK........",
-  "KHHhHHKSSSSSKSSK........",
-  "KhHHhHKsSSSSSSSK........",
-  "KHhHHHKsSSSLSSK.........",
-  "KhHHhHHKssSSSK..........",
-  "KHHhHHHHKPPKK...........",
-  "KhHHOOOKPPPPPK..........",
-  "KHhKOKOKPCPPCPK.........",
-  "KhHKOOOKCPPPPCPK........",
-  ".KHKKOKPCPPPPPCPK.......",
-  ".KhKPPPPCPPPPPCPK.......",
-  "..KKPPPPCBBBBBCPK.......",
-  "..KPPPPPCPPPPPCPPK......",
-  "..KPPpPPCCPPPCCPPK......",
-  ".KPPpPPPPCCPCCPPPPK.....",
-  ".KPpPPPPPPCCCPPPPPK.....",
-  "KPPpPPPPPPPCPPPPPPPK....",
-  "KPpPPPPPPPPPPPPPPPPK....",
-  "KYYYYYYYYYYYYYYYYYYK....",
-  ".KKbbKKKKKKKKbbKKKK.....",
-  "...KKK......KKK........."] },
-{ id: "uzu", nombre: "Uzu", clase: "Goblin", desc: "Bajito, de orejas enormes y casco con púas. Sonríe con todos los dientes y blande un hacha de hueso más grande que él.", frase: "Shiny! Mine!",
-  hombro: [12, 17],
-  arma: "hachahueso", salta: true, brazo: "G", mano: "G", manoMini: true, venda: ["#D6CFBC", "#8E8570"],
-  guardia: { mano: [15, 23], dir: [0.8, -0.6] },
-  pal: { G: "#6FA544", g: "#4A7A2C", B: "#6B4A2A", b: "#8A6438", M: "#B8C0CC", R: "#E04848", W: "#E8E4D8", w: "#B8B2A2", V: "#D6CFBC", v: "#8E8570",
-         T: "#7A5232", t: "#5A3A22", Y: "#C9A24B" },
-  grid: [
-  "........................",
-  "........................",
-  "........................",
-  "........................",
-  "........................",
-  "........K..K............",
-  ".......KMKKMK...........",
-  ".....KKBBBBBBKK.........",
-  "....KBBbBBBBBBBK........",
-  "K..KBBbBBBBBBBBBK...KK..",
-  "KGKKBBBBBBBBBBBBKKKGgK..",
-  ".KGgKGGGGGGGGGGKGGGgK...",
-  "..KGgKGRRGGGRRGKgGK.....",
-  "...KKKGGGGgGGGGKKK......",
-  "....KGKWKWKWKWGK........",
-  "....KGGKKKKKKGGK........",
-  ".....KKGGGGGGKK.........",
-  "....KGGKTTTTTK..........",
-  "...KGGKTTTTTTK..........",
-  "...KGgKTtTTTTK..........",
-  "..KGGgKTTTTTTK..........",
-  "..KVvKBBBBYBBBK.........",
-  "..KvVKTTTtTTtTK.........",
-  "..KGGKtTKTTTKtTK........",
-  "..KgKKTKGGKGGKTK........",
-  ".....KGGK...KGGK........",
-  ".....KVvK...KVvK........",
-  ".....KvVK...KvVK........",
-  "....KGGGGK.KGGGGK.......",
-  "...KgKgKgK.KgKgKgK......"] },
-{ id: "xitin", nombre: "Xitin", clase: "Invocadora", desc: "Rubia platino, trenza larga, pintura de guerra y manto de piel. Cuando ataca, ¡puf!: se transforma en un enorme oso pardo que ruge.", frase: "Unleash the bear!",
-  arma: "puno", brazo: "S", mano: "S", manoChica: true, espiritu: true,
-  pal: { H: "#F4E7B8", h: "#C9B47A", Z: "#FFFBEA", p: "#C9707A", S: "#F2D6C4", s: "#CFA88F", R: "#4A3A5A", L: "#6B3F22", l: "#4E2C16", F: "#E6E1D6", f: "#B0A898",
-         B: "#3A2418", O: "#D8DEE8", T: "#5A3A28", t: "#40281A", b: "#3A2418" },
-  /* Al atacar se convierte en este oso (ver sprite: la forma «oso» reemplaza grilla y colores). */
-  oso: { brazo: "B", mano: "b", hombro: [15, 7], top: -6, grueso: true,
-    poses: { ataque: { mano: [9, 4], dir: [0, -1] }, zarpa: { mano: [20, 28], dir: [1, 0.4] } },
-    pal: { B: "#6B4426", b: "#4A2E18", M: "#A57A4E", W: "#F2EEE0", R: "#7A2A3A" },
-    grid: [
-    "...............KK...........",
-    "..............KBbK.KK.......",
-    ".............KBBBBKbBK......",
-    "............KBBBBBBBBKK.....",
-    "...........KBBBBBBBKBBBKK...",
-    "..........KBBBBBBBBBBBMMMMK.",
-    ".........KBBBBBBBBBBBMMMMKK.",
-    "........KBBBBBBBBBBBKWKWKK..",
-    ".......KBBBBBBBBBBBBKRRRK...",
-    "......KBBBBBBBBBBBBBKWKWK...",
-    ".....KBBbBBBBBBBBBBBMMMK....",
-    "....KBBbBBBBBBBBBBBBMMK.....",
-    "....KBbBBBBBBBBBBBBBKK......",
-    "...KBbBBBBBBBBBBBBBBMK......",
-    "...KBbBBBBBBBBBBBBBMMK......",
-    "...KBbBBBBBBbBBBBBBMMK......",
-    "..KBbBBBBBBBBBBBBBBMMK......",
-    "..KBbBBBBBBBBBBBBBMMMK......",
-    "..KBbBBBBbBBBBBBBBMMMK......",
-    "..KBbBBBBBBBBBBBBBMMMK......",
-    "..KBbBBBBBBBBBBBBBMMK.......",
-    "..KBBbBBBBBBBBbBBBMMK.......",
-    "..KBBbBBBBBBBBBBBBBK........",
-    "..KBBBbBBBBBBBBBBBBK........",
-    "...KBBBBBBBBBBBBBBK.........",
-    "...KBBBBBBBBBBBBBBK.........",
-    "...KBBBBBKKKKKKBBBBK........",
-    "...KBBBBK....KBBBBK.........",
-    "...KBBBBK....KBBBBK.........",
-    "...KBBBBK....KBBBBK.........",
-    "...KBBBBK....KBBBBK.........",
-    "...KBBBBK....KBBBBK.........",
-    "...KBBBBBK...KBBBBBK........",
-    "...KBBBBBBK..KBBBBBBK.......",
-    "...KbWbWbWK..KbWbWbWK.......",
-    "...KKKKKKKK..KKKKKKKK......."] },
-  grid: [
-  "........................",
-  ".........KKKKK..........",
-  ".......KKHHZHHKK........",
-  "......KHHhHHZHHHK.......",
-  ".....KHHhHHHHHHHHK......",
-  ".....KHhHHHHHHHHHK......",
-  "....KHhHHHHHKKKSHK......",
-  "....KHhHHHHKSSSSSK......",
-  "...KHhHHHHKSSSSSSK......",
-  "...KHhHHHKSSSSRKSK......",
-  "..KKHhHHKSSSSSRKSK......",
-  ".KSSKhHHKSSSSSRSSK......",
-  "..KSKHhHKsSSSSSSK.......",
-  "...KHhHHKsSSSSpSK.......",
-  "...KHhHHHKssSSSK........",
-  "..KFFFFFHhKKKKK.........",
-  ".KFfFFFFFFFFFFK.........",
-  "KFfFFfFFFFfFFFFK........",
-  ".KFFFKLLLLLLLFK.........",
-  "..KHKLLlLLLLLK..........",
-  "..KHKLLLLlLLLK..........",
-  "..KhKFfFfFfFFK..........",
-  "..KHKSSSSsSSSK..........",
-  "...KKOBOBOBOBK..........",
-  "....KTTTTTTTTK..........",
-  "....KTTTKTTTTK..........",
-  "....KFFFKFFFFK..........",
-  "....KFfFKFfFFK..........",
-  "...KbbbbKbbbbbK.........",
-  "....KKKKKKKKKK.........."] },
-];
-
-/* ======================= DIBUJO ======================= */
-const SW = 44, SH = 40, OX = 4, OY = 8;   // lienzo de cada sprite; el cuerpo empieza en (OX, OY)
-const HOMBRO = [10, 18];
-const POSE = {                              // mano y dirección del arma, en coordenadas del cuerpo
-  guardia: { mano: [14, 22], dir: [0.45, -0.9] },
-  ataque:  { mano: [18, 19], dir: [1, -0.04] },
-  alzada:  { mano: [16, 14], dir: [0.06, -1] },
-  rendido: { mano: [15, 10], dir: null },    // desarmado: manos arriba
-  zarpa: { mano: [18, 21], dir: [1, 0.3] },   // el zarpazo del oso, ya abajo
-  aplauso1: { mano: [18, 16], mano2: [13, 20], dir: null },
-  aplauso2: { mano: [16, 18], mano2: [15, 19], dir: null },
-};
-/* La segunda mano del trickster (sale de la capa, más abajo). */
-const MANO2 = { guardia: { mano: [12, 24], dir: [0.92, 0.38] }, ataque: { mano: [16, 25], dir: [1, 0.22] }, alzada: { mano: [12, 24], dir: [0.92, 0.38] } };
-const HOMBRO2 = [7, 18];
-const LARGO = { hachahueso: 12, machete: 13, martillo: 14, micro: 6, cucharon: 15, espada: 15, espadon: 17, sable: 15, daga: 8, hacha: 16, kukri: 9 };
-const ACERO = "#DCE3EE";
-
-function line(x0, y0, x1, y1, fn) {
-  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
-  let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, e = dx + dy;
-  for (;;) { fn(x0, y0); if (x0 === x1 && y0 === y1) break; const e2 = 2 * e; if (e2 >= dy) { e += dy; x0 += sx; } if (e2 <= dx) { e += dx; y0 += sy; } }
-}
-const norm = ([x, y]) => { const n = Math.hypot(x, y); return [x / n, y / n]; };
-const tipoArma = (c) => (c.arma === "kukris" ? "kukri" : c.arma);
-
-/* Punta del arma en la pose de ataque (coordenadas del cuerpo): ahí choca o sale el disparo. */
-function punta(c) {
-  const { mano: [mx, my], dir } = POSE.ataque;
-  const [shx, shy] = (c.oso && c.oso.hombro) || c.hombro || HOMBRO;
-  const zarpa = c.oso && c.oso.poses && c.oso.poses.zarpa;
-  if (zarpa) return [zarpa.mano[0] + shx - HOMBRO[0] + 5, zarpa.mano[1] + shy - HOMBRO[1] + 1];
-  const hx = mx + shx - HOMBRO[0], hy = my + shy - HOMBRO[1]; const [ux, uy] = norm(dir); const a = tipoArma(c);
-  if (a in LARGO) return [hx + ux * LARGO[a], hy + uy * LARGO[a]];
-  if (a === "baculo") return [hx + 12, hy - 1];
-  if (a === "arco") return [hx + 5, hy];
-  if (a === "pocion") return [hx + 2, hy - 3];
-  if (a === "naipes") return [hx + 3, hy - 2];
-  if (a === "libro") return [30, 12];
-  if (a === "laud") return [hx - 1, hy - 3];
-  if (a === "escudo") return [hx + 8, hy - 2];
-  if (a === "cuchillas") return [hx + 3, hy];
-  if (a === "totem") return [hx + 16, hy];
-  return [hx + 3, hy + 1];                                    // puño y cohete
-}
-const DISPARA = { libro: true, laud: true, cuchillas: true, naipes: true, pocion: true, micro: true, baculo: true, arco: true, cohete: true };
-const TIENE_ARMA = (c) => c.arma !== "puno" && c.arma !== "cohete";
-
-/* Dibuja un arma con la mano en (hx, hy) apuntando a (ux, uy). `d` trae los pinceles. */
-function arma(d, tipo, c, P, hx, hy, ux, uy, pose) {
-  const { px, blk, contorno } = d;
-  if (tipo === "libro") {
-    if (pose === "rendido") return;
-    // grimorio que FLOTA junto a ella, abierto y de frente; al atacar se adelanta y brilla
-    const [cx, cy] = { guardia: [23, 8], ataque: [25, 12], alzada: [22, 2], suelta: [14, 14] }[pose] || [23, 8];
-    const MORADO = "#4E2A6E", PAPEL = "#F1E8CF", LETRA = "#B8AE90", MAGIA = "#C4A7FF";
-    blk(cx - 6, cy - 4, 13, 9, K);
-    blk(cx - 5, cy - 3, 11, 7, MORADO);
-    blk(cx - 5, cy - 3, 5, 6, PAPEL); blk(cx + 1, cy - 3, 5, 6, PAPEL);
-    blk(cx, cy - 3, 1, 7, K);
-    [cy - 2, cy, cy + 2].forEach((y) => { blk(cx - 4, y, 3, 1, LETRA); blk(cx + 2, y, 3, 1, LETRA); });
-    if (pose !== "suelta") {
-      px(cx - 7, cy - 5, MAGIA); px(cx + 7, cy - 3, MAGIA); px(cx - 2, cy + 6, MAGIA); px(cx + 2, cy + 7, MAGIA);
-      if (pose !== "guardia") { px(cx, cy - 6, MAGIA); px(cx - 1, cy - 7, MAGIA); px(cx + 1, cy - 7, MAGIA); px(cx, cy - 8, "#F5F3FF"); }
-    }
-    return;
-  }
-  if (tipo === "laud") {
-    if (pose === "rendido") return;
-    const cx = 13 + (c.hombro ? c.hombro[0] - 10 : 0), cy = 21, MADERA = "#C98A4A", OSCURA = "#7A4A22";
-    const caja = (fn) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -5; dx <= 5; dx++) if ((dx / 5.2) ** 2 + (dy / 4.2) ** 2 <= 1) fn(cx + dx, cy + dy, dx, dy); };
-    const [n0x, n0y, n1x, n1y] = [cx + 3, cy - 3, cx + 9, cy - 9];
-    line(n0x, n0y, n1x, n1y, (x, y) => blk(x - 1, y - 1, 4, 4, K));
-    blk(n1x - 1, n1y - 2, 4, 4, K);
-    caja((x, y) => contorno(x, y));
-    line(n0x, n0y, n1x, n1y, (x, y) => blk(x, y, 2, 2, OSCURA));
-    blk(n1x, n1y - 1, 2, 2, "#3A2418"); px(n1x + 1, n1y - 2, "#E5E7EB");
-    caja((x, y, dx, dy) => px(x, y, dx + dy < -4 ? "#E2B07A" : (dx / 5.2) ** 2 + (dy / 4.2) ** 2 > 0.7 ? OSCURA : MADERA));
-    blk(cx - 1, cy - 1, 2, 2, "#2A1608");
-    line(cx - 3, cy + 2, n1x, n1y, (x, y) => { if ((x + y) % 2 === 0) px(x, y, "#F4E7C8"); });
-    return;
-  }
-  if (tipo === "escudo") {
-    if (pose === "rendido") return;
-    const cx = pose === "ataque" ? hx + 3 : hx + 2, top = pose === "alzada" ? hy - 11 : hy - 8, H = 14;
-    const media = (i) => (i < 8 ? 4 : Math.max(0, Math.round(4 * (H - 1 - i) / 6)));
-    for (let i = 0; i < H; i++) { const w = media(i); blk(cx - w - 1, top + i - 1, 2 * w + 3, 3, K); }
-    for (let i = 0; i < H; i++) { const w = media(i); blk(cx - w, top + i, 2 * w + 1, 1, "#E5E7EB"); if (w > 1 && i > 0 && i < H - 2) blk(cx - w + 1, top + i, 2 * w - 1, 1, "#1E3FAE"); }
-    for (let i = 2; i <= 6; i++) { px(cx - 2, top + i, "#D7263D"); px(cx + 2, top + i, "#D7263D"); }   // la U
-    blk(cx - 1, top + 7, 3, 1, "#D7263D"); px(cx - 2, top + 7, "#9B1428"); px(cx + 2, top + 7, "#9B1428");
-    px(cx - 3, top + 1, "#5B7BE0"); px(cx - 3, top + 2, "#5B7BE0");
-    return;
-  }
-  if (tipo === "cuchillas") {
-    if (pose === "ataque") return;
-    return arma(d, "daga", c, P, hx, hy, ux, uy, pose);
-  }
-  if (tipo === "totem") {
-    const MADERA = "#9A6A3A", OSCURA = "#6E4824";
-    const LOBO = [            // cabeza de lobo tallada, mirando a la derecha
-      ".K...K....",
-      "KgK.KgK...",
-      "KGgKGGK...",
-      "KGGGGGGKK.",
-      "KGGGGKGGGK",
-      "KgGGGGGGGK",
-      "KgGGWWWWKK",
-      ".KKKKKKK..",
-    ];
-    const pinta = { K, G: "#8E96A3", g: "#5E6673", W: "#E5E7EB" };
-    const cabeza = (cx, cy) => LOBO.forEach((fila, y) => [...fila].forEach((k, x) => { if (pinta[k]) px(cx - 4 + x, cy - 4 + y, pinta[k]); }));
-    const banderin = (bx, by, abajo) => {    // triángulo de la patrulla
-      for (let i = 0; i < 5; i++) {
-        const largo = 7 - i, y = abajo ? by + i : by + i;
-        blk(bx - 1, y - 1, largo + 2, 3, K);
-      }
-      for (let i = 0; i < 5; i++) { const largo = 7 - i; blk(bx, by + i, largo, 1, i === 2 ? "#3F6B3A" : "#FBBF24"); }
-    };
-    if (pose === "ataque") {
-      const y = hy, x0 = hx - 8, x1 = hx + 13;
-      line(x0, y, x1, y, (x, yy) => contorno(x, yy));
-      banderin(x1 - 7, y + 2, true);
-      line(x0, y, x1, y, (x, yy) => px(x, yy, (x % 5 === 0) ? OSCURA : MADERA));
-      cabeza(x1 + 3, y);
-    } else {
-      const x = hx + 2, y0 = hy + (pose === "alzada" ? 10 : 7), y1 = hy - (pose === "alzada" ? 13 : 18);
-      line(x, y0, x, y1, (xx, y) => contorno(xx, y));
-      banderin(x + 2, y1 + 3, false);
-      line(x, y0, x, y1, (xx, y) => px(xx, y, (y % 5 === 0) ? OSCURA : MADERA));
-      cabeza(x, y1 - 3);
-    }
-    return;
-  }
-  if (tipo === "naipes") {
-    if (pose === "ataque") return;
-    // tres cartas en abanico, cada una con su borde para que se lean separadas
-    const cartas = [[hx - 3, hy - 6], [hx, hy - 8], [hx + 3, hy - 6]];
-    cartas.forEach(([x, y], i) => {
-      blk(x - 1, y - 1, 5, 7, K); blk(x, y, 3, 5, "#F8F5EE");
-      const tinta = i === 1 ? "#1A1020" : "#D7263D";
-      px(x + 1, y + 2, tinta); px(x, y, tinta); px(x + 2, y + 4, "#C9C2B2");
-    });
-    return;
-  }
-    if (tipo === "pocion") {
-      if (pose === "ataque") return;
-      const cx = hx + 1, cy = hy - 3;
-      blk(cx - 2, cy - 1, 5, 5, K); blk(cx - 1, cy - 4, 3, 4, K);
-      blk(cx - 1, cy, 3, 3, "#4ADE80"); px(cx - 1, cy, "#BBF7D0"); px(cx + 1, cy + 2, "#16A34A");
-      px(cx, cy - 1, "#D9E8E0"); px(cx, cy - 2, "#D9E8E0"); px(cx, cy - 3, "#8A5A2A");
-      px(cx + 2, cy - 6, "#86EFAC"); px(cx + 1, cy - 7, "#86EFAC");
-      return;
-    }
-  if (tipo in LARGO) {
-    const L = LARGO[tipo], tx = hx + ux * L, ty = hy + uy * L, bx = hx - ux * 2, by = hy - uy * 2;
-    if (tipo === "hachahueso") {
-      // mango de hueso grueso, con los dos nudos clásicos en cada punta; la hoja de piedra mira hacia adelante
-      const HUESO = "#E2DFBC", SOMBRA = "#B5B28E", LUZ = "#F5F3DE", PIEDRA = "#4A4446", FILO = "#8C8387";
-      const hb = 3, tx = hx + ux * (L + 1), ty = hy + uy * (L + 1), bx = hx - ux * hb, by = hy - uy * hb;
-      const nx = -uy, ny = ux;   // perpendicular hacia adelante
-      // hoja de hacha: cuello angosto junto al mango que se abre en un filo ancho y curvo
-      const centro = L - 3, hoja = (fn) => { for (let s2 = 1; s2 <= 5; s2++) { const media = 0.6 + s2 * 0.55 - (s2 === 5 ? 0.6 : 0); for (let t = Math.round(centro - media); t <= Math.round(centro + media); t++) fn(Math.round(hx + ux * t + nx * s2), Math.round(hy + uy * t + ny * s2), s2, t); } };
-      const nudos = (x, y, fn) => [-1, 1].forEach((sg) => fn(Math.round(x + nx * sg * 1.2), Math.round(y + ny * sg * 1.2)));
-      line(bx, by, tx, ty, (x, y) => blk(x - 1, y - 1, 4, 4, K));
-      nudos(bx, by, (x, y) => blk(x - 1, y - 1, 4, 4, K)); nudos(tx, ty, (x, y) => blk(x - 1, y - 1, 4, 4, K));
-      hoja((x, y) => contorno(x, y));
-      line(bx, by, tx, ty, (x, y) => { blk(x, y, 2, 2, HUESO); px(x, y, LUZ); px(x + 1, y + 1, SOMBRA); });
-      nudos(bx, by, (x, y) => { blk(x, y, 2, 2, HUESO); px(x, y, LUZ); });
-      nudos(tx, ty, (x, y) => { blk(x, y, 2, 2, HUESO); px(x, y, LUZ); });
-      hoja((x, y, s2, t) => px(x, y, s2 >= 4 ? FILO : (t + s2) % 3 ? PIEDRA : "#5E5658"));
-      return;
-    }
-    if (tipo === "kukri" || tipo === "machete") {
-      // hoja curva con panza: 2 px de ancho, 3 cerca de la punta, y se dobla hacia abajo
-      const pts = [];
-      for (let t = 1; t <= L; t++) {
-        const b = Math.round(1.4 * Math.sin(Math.PI * t / (L + 2)));
-        const ancho = t === L ? 1 : tipo === "machete" ? (t >= L - 7 ? 3 : 2) : t >= L - 4 ? 3 : 2;
-        for (let w = 0; w < ancho; w++) pts.push([Math.round(hx + ux * t - uy * (b + w)), Math.round(hy + uy * t + ux * (b + w)), t, w]);
-      }
-      line(bx, by, hx, hy, (x, y) => contorno(x, y));
-      pts.forEach(([x, y]) => contorno(x, y));
-      line(bx, by, hx, hy, (x, y) => px(x, y, "#5A3A28"));
-      pts.forEach(([x, y, t, w]) => px(x, y, w === 0 ? (t % 3 === 0 ? "#FFFFFF" : "#E6ECF4") : "#A9B4C6"));
-      const gx = Math.round(hx + ux), gy = Math.round(hy + uy);
-      blk(gx - 1, gy - 1, 3, 3, K); px(gx, gy, P.G || "#D4AF4F");
-      return;
-    }
-    if (tipo === "martillo") {
-      // mango largo y una cabeza de forja atravesada en la punta
-      const L = LARGO.martillo, bx = hx - ux * 2, by = hy - uy * 2, tx = hx + ux * L, ty = hy + uy * L;
-      const cabeza = (fn) => { for (let t = L - 3; t <= L + 1; t++) for (let s2 = -4; s2 <= 4; s2++) fn(Math.round(hx + ux * t - uy * s2), Math.round(hy + uy * t + ux * s2), t, s2); };
-      line(bx, by, tx, ty, (x, y) => contorno(x, y));
-      cabeza((x, y) => contorno(x, y));
-      line(bx, by, tx, ty, (x, y) => px(x, y, "#7A5232"));
-      cabeza((x, y, t, s2) => px(x, y, t === L - 3 || s2 === -4 ? "#D9DEE8" : t === L + 1 || s2 === 4 ? "#7C8594" : "#A9B2BF"));
-      return;
-    }
-    if (tipo === "micro") {
-      // micrófono de mano: mango oscuro y cabeza de rejilla plateada
-      const mx = Math.round(hx + ux * 4), my = Math.round(hy + uy * 4);
-      line(hx - ux, hy - uy, mx, my, (x, y) => contorno(x, y));
-      blk(mx - 2, my - 3, 5, 7, K); blk(mx - 3, my - 2, 7, 5, K);
-      line(hx - ux, hy - uy, mx, my, (x, y) => px(x, y, "#2A2A35"));
-      blk(mx - 1, my - 2, 3, 5, "#C9D1DE"); blk(mx - 2, my - 1, 5, 3, "#C9D1DE");
-      px(mx, my, "#8A94A6"); px(mx + 1, my + 1, "#8A94A6"); px(mx - 1, my + 1, "#8A94A6"); px(mx - 1, my - 1, "#FFFFFF");
-      return;
-    }
-    if (tipo === "cucharon") {
-      // mango largo de madera y una cuchara honda en la punta
-      const cx = Math.round(hx + ux * (L + 1)), cy = Math.round(hy + uy * (L + 1));
-      const taza = (fn) => { for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if ((dx / 3.1) ** 2 + (dy / 2.6) ** 2 <= 1) fn(cx + dx, cy + dy, dx, dy); };
-      line(bx, by, tx, ty, (x, y) => contorno(x, y));
-      taza((x, y) => contorno(x, y));
-      line(bx, by, tx, ty, (x, y) => px(x, y, "#C68A4E"));
-      line(hx + ux * 2, hy + uy * 2, tx, ty, (x, y) => { if ((x + y) % 4 === 0) px(x, y, "#E2B07A"); });
-      taza((x, y, dx, dy) => px(x, y, (dx / 3.1) ** 2 + (dy / 2.6) ** 2 > 0.45 ? "#C68A4E" : "#7A4A22"));
-      px(cx - 1, cy - 1, "#E2B07A");
-      return;
-    }
-    line(bx, by, tx, ty, (x, y) => contorno(x, y));
-    if (tipo === "hacha") {
-      const hoja = (fn) => { for (let t = L - 6; t <= L; t++) for (let s = 1; s <= 5 - Math.abs(t - (L - 3)) * 0.8; s++) fn(Math.round(hx + ux * t + uy * s), Math.round(hy + uy * t - ux * s), s); };
-      hoja((x, y) => contorno(x, y));
-      line(bx, by, tx, ty, (x, y) => px(x, y, "#7A5232"));
-      hoja((x, y, s) => px(x, y, s > 3 ? "#FFFFFF" : ACERO));
-      return;
-    }
-    line(bx, by, hx, hy, (x, y) => px(x, y, tipo === "sable" ? P.G : "#6B4430"));
-    line(hx, hy, tx, ty, (x, y) => px(x, y, ACERO));
-    line(hx + ux * 3, hy + uy * 3, tx, ty, (x, y) => { if ((x + y) % 3 === 0) px(x, y, "#FFFFFF"); });
-    const gx = hx + ux, gy = hy + uy, w = tipo === "daga" ? 1 : 2;
-    line(gx - uy * w, gy + ux * w, gx + uy * w, gy - ux * w, (x, y) => contorno(x, y));
-    line(gx - uy * w, gy + ux * w, gx + uy * w, gy - ux * w, (x, y) => px(x, y, "#FBBF24"));
-    if (tipo === "espadon") line(hx + ux * 4, hy + uy * 4, tx, ty, (x, y) => px(x, y, "#B9C3D3"));
-  }
-  if (tipo === "baculo") {
-    let a, b;
-    if (pose === "ataque" && !c.raices) { a = [hx - 6, hy + 1]; b = [hx + 11, hy - 1]; }
-    else if (c.escoba) { a = [hx + 1, hy + 3]; b = [hx + 1, hy - 15]; }
-    else { a = [hx + 1, hy + 7]; b = [hx + 1, hy - 14]; }
-    if (c.escoba) {
-      const [ax, ay] = [Math.round(a[0]), Math.round(a[1])], PAJA = "#E0B04A", ATADO = "#9A3B2A";
-      line(...a, ...b, (x, y) => contorno(x, y));
-      if (pose === "ataque") { blk(ax - 6, ay - 3, 7, 7, K); blk(ax - 5, ay - 2, 5, 5, PAJA); blk(ax - 1, ay - 2, 1, 5, ATADO); px(ax - 5, ay - 2, "#F6D27A"); px(ax - 4, ay + 1, "#B8862E"); }
-      else { blk(ax - 3, ay - 1, 7, 7, K); blk(ax - 2, ay, 5, 5, PAJA); blk(ax - 2, ay, 5, 1, ATADO); px(ax - 1, ay + 3, "#B8862E"); px(ax + 1, ay + 4, "#F6D27A"); }
-      line(...a, ...b, (x, y) => px(x, y, "#7A5232"));
-      const [ox, oy] = [Math.round(b[0]), Math.round(b[1])];
-      px(ox, oy, "#FFFFFF"); px(ox - 1, oy, c.orbe); px(ox + 1, oy, c.orbe); px(ox, oy - 1, c.orbe); px(ox, oy + 1, c.orbe);
-      return;
-    }
-    line(...a, ...b, (x, y) => contorno(x, y));
-    line(...a, ...b, (x, y) => px(x, y, "#7A5232"));
-    const [ox, oy] = [Math.round(b[0]), Math.round(b[1])];
-    if (c.craneo) { blk(ox - 3, oy - 4, 7, 6, K); blk(ox - 2, oy - 3, 5, 4, "#E9E1C8"); px(ox - 1, oy - 2, K); px(ox + 1, oy - 2, K); px(ox, oy, "#B8AE90"); px(ox - 3, oy - 5, "#E9E1C8"); px(ox + 3, oy - 5, "#E9E1C8"); }
-    else if (c.espiral) { blk(ox - 2, oy - 4, 5, 5, K); blk(ox - 1, oy - 3, 3, 3, "#7A5232"); px(ox, oy - 2, K); px(ox + 1, oy - 1, "#7A5232"); px(ox - 2, oy - 2, c.orbe); }
-    else if (c.luna) { blk(ox - 2, oy - 3, 5, 5, K); blk(ox - 1, oy - 2, 3, 3, c.orbe); blk(ox, oy - 2, 2, 2, K); px(ox + 1, oy - 1, c.orbe); }
-    else { blk(ox - 2, oy - 2, 5, 5, K); blk(ox - 1, oy - 1, 3, 3, c.orbe); px(ox - 1, oy - 1, "#FFFFFF"); }
-  }
-  if (tipo === "arco") {
-    const bx = hx + 2;
-    for (let dy = -8; dy <= 8; dy++) contorno(bx + Math.round(3 * (1 - (dy / 8) ** 2)), hy + dy);
-    for (let dy = -8; dy <= 8; dy++) px(bx + Math.round(3 * (1 - (dy / 8) ** 2)), hy + dy, "#8A5A32");
-    const tirado = pose === "ataque" ? -3 : 0;
-    line(bx, hy - 8, bx + tirado, hy, (x, y) => px(x, y, "#E8ECF5"));
-    line(bx + tirado, hy, bx, hy + 8, (x, y) => px(x, y, "#E8ECF5"));
-    if (pose === "ataque") { line(bx - 3, hy, bx + 5, hy, (x, y) => px(x, y, "#C9A26B")); px(bx + 6, hy, ACERO); }
-  }
-}
-function pinceles(g, ox, oy) {
-  const px = (x, y, col) => { g.fillStyle = col; g.fillRect(x + ox, y + oy, 1, 1); };
-  const blk = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x + ox, y + oy, w, h); };
-  return { px, blk, contorno: (x, y, r = 1) => blk(x - r, y - r, 2 * r + 1, 2 * r + 1, K) };
-}
-
-const cache = new Map();
-function sprite(c, pose, { alt = false, sinMano = false } = {}) {
-  const osoKey = c.oso && (pose === "ataque" || pose === "osoGuardia" || pose === "zarpa");
-  if (osoKey) c = { ...c, ...c.oso, id: c.id + "-oso", oso: null, garras: true };
-  if (pose === "osoGuardia") pose = "guardia";
-  const key = [c.id, pose, alt, sinMano].join("|");
-  const palpita = c.espiritu && (pose === "guardia" || pose === "alzada");
-  if (!palpita && cache.has(key)) return cache.get(key);
-  const cv = document.createElement("canvas"); cv.width = SW; cv.height = SH;
-  const g = cv.getContext("2d");
-  const P = { ...c.pal };
-  if (alt) for (const k of Object.keys(P)) if (k !== "S" && k !== "s") { const v = P[k]; P[k] = typeof v === "function" ? (x, y) => tono(v(x, y)) : tono(v); }
-  const d = pinceles(g, OX, OY), { px, blk } = d;
-  const top = c.top || 0;
-  c.grid.forEach((row, y) => [...row].forEach((k, x) => { if (k === "K") px(x, y + top, K); else if (P[k]) px(x, y + top, typeof P[k] === "function" ? P[k](x, y) : P[k]); }));
-
-  const p = POSE[pose];
-  if (p) {
-    const pp = (c.poses && c.poses[pose]) || (pose === "guardia" && c.guardia) || p;
-    if (p.mano2) { const [ax, ay] = p.mano2; blk(ax - 1, ay - 1, 4, 4, K); blk(ax, ay, 2, 2, P[c.mano]); }   // la otra mano, detrás
-    const [shx, shy] = c.hombro || HOMBRO;
-    const [hx, hy] = [pp.mano[0] + shx - HOMBRO[0], pp.mano[1] + shy - HOMBRO[1]];
-    if (pp.dir) {
-      const [ux, uy] = norm(pp.dir);
-      if (c.arma === "kukris" && MANO2[pose]) {             // brazo de atrás, con su cuchillo
-        const { mano: [h2x, h2y], dir: d2 } = MANO2[pose], [vx, vy] = norm(d2);
-        line(...HOMBRO2, h2x, h2y, (x, y) => blk(x - 1, y - 1, 4, 4, K));
-        line(...HOMBRO2, h2x, h2y, (x, y) => blk(x, y, 2, 2, P.j || P[c.brazo]));
-        arma(d, "kukri", c, P, h2x, h2y, vx, vy, pose);
-        blk(h2x - 1, h2y - 1, 4, 4, K); blk(h2x, h2y, 2, 2, P[c.mano]);
-      }
-      if (c.arma === "laud") arma(d, "laud", c, P, hx, hy, 0, -1, pose);
-      else if (c.arma !== "pocion" && c.arma !== "naipes" && c.arma !== "escudo" && c.arma !== "libro") arma(d, tipoArma(c), c, P, hx, hy, ux, uy, pose);
-    }
-    // ---- brazo y mano ----
-    const gb = c.grueso ? 1 : 0, ancho = 2 + 2 * gb, relleno = new Map();
-    line(shx, shy, hx, hy, (x, y) => { for (let i = 0; i < ancho; i++) for (let j = 0; j < ancho; j++) relleno.set((x - gb + i) + "," + (y - gb + j), [x - gb + i, y - gb + j]); });
-    relleno.forEach(([x, y]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { if (!relleno.has((x + dx) + "," + (y + dy))) px(x + dx, y + dy, K); }));
-    relleno.forEach(([x, y]) => px(x, y, c.venda && Math.hypot(x - hx, y - hy) < 3 ? c.venda[(x + y) % 3 === 0 ? 1 : 0] : P[c.brazo]));   // venda en la muñeca, con sus vueltas
-    if (!sinMano) {
-      const s = c.grueso ? 5 : c.manoMini ? 1 : c.manoChica ? 2 : c.arma === "puno" || c.arma === "cohete" ? 3 : 2;
-      blk(hx - 1, hy - 1, s + 2, s + 2, K); blk(hx, hy, s, s, P[c.mano]);
-      if (c.arma === "cohete") px(hx + 1, hy + 1, "#FFFFFF");
-      if (c.espiritu && (pose === "guardia" || pose === "alzada")) {
-        // maná verde que emana de la mano: halo suave, núcleo brillante, volutas que suben y partículas
-        const cx = hx + 1, cy = hy + 1, t = typeof performance !== "undefined" ? performance.now() : 0;
-        const pulso = 0.5 + 0.5 * Math.sin(t / 280);   // 0..1, sube y baja como una respiración
-        [[7, 0.10], [5, 0.18], [3.5, 0.28], [2, 0.45]].forEach(([r, a]) => { g.fillStyle = `rgba(163, 230, 53, ${a * (0.35 + 0.9 * pulso)})`; g.beginPath(); g.arc(cx + OX + 0.5, cy + OY + 0.5, r * (0.75 + 0.4 * pulso), 0, Math.PI * 2); g.fill(); });
-        [[0, 0, "#F7FEE7"], [-1, 0, "#ECFCCB"], [0, -1, "#ECFCCB"], [1, 0, "#D9F99D"], [0, 1, "#D9F99D"]].forEach(([dx, dy, col]) => px(cx + dx, cy + dy, col));
-        [[2, -4], [3, -5], [3, -6], [2, -7], [1, -8], [-2, -3], [-3, -4], [-3, -5], [-2, -6]].forEach(([dx, dy], i) => px(cx + dx, cy + dy, i % 2 ? "#BEF264" : "#86EFAC"));
-        [[5, 1], [-4, 2], [4, -9], [-5, -7], [6, -3]].forEach(([dx, dy], i) => { if ((Math.floor(t / 180) + i) % 3) px(cx + dx, cy + dy, "#D9F99D"); });
-      }
-      if (c.garras) { [0, 2, 4].slice(0, s > 3 ? 3 : 2).forEach((i) => { blk(hx + s, hy + i, 3, 1, K); px(hx + s, hy + i, "#F2EEE0"); px(hx + s + 1, hy + i, "#F2EEE0"); }); }
-    }
-    if ((c.arma === "pocion" || c.arma === "naipes" || c.arma === "escudo" || c.arma === "libro") && pp.dir) arma(d, c.arma, c, P, hx, hy, 0, -1, pose);   // el frasco va en la mano, delante
-  }
-  if (!palpita) cache.set(key, cv);
-  return cv;
-}
-/* El arma sola, para cuando sale volando (horizontal, centrada). */
-const sueltas = new Map();
-function armaSuelta(c) {
-  const tipo = tipoArma(c), key = c.id; if (sueltas.has(key)) return sueltas.get(key);
-  const cv = document.createElement("canvas"); cv.width = 28; cv.height = 28;
-  const d = pinceles(cv.getContext("2d"), 0, 0);
-  if (tipo === "arco") arma(d, tipo, c, c.pal, 10, 14, 1, 0, "guardia");
-  else if (tipo === "escudo") arma(d, tipo, c, c.pal, 12, 20, 0, -1, "guardia");
-  else if (tipo === "laud") arma({ ...d, px: (x, y, col) => d.px(x - 1, y - 7, col), blk: (x, y, w, h, col) => d.blk(x - 1, y - 7, w, h, col), contorno: (x, y, r = 1) => d.blk(x - 1 - r, y - 7 - r, 2 * r + 1, 2 * r + 1, K) }, tipo, c, c.pal, 0, 0, 0, -1, "guardia");
-  else if (tipo === "cuchillas") arma(d, "daga", c, c.pal, 10, 14, 1, 0, "ataque");
-  else if (tipo === "totem") arma(d, tipo, c, c.pal, 7, 14, 1, 0, "ataque");
-  else if (tipo === "libro") arma(d, tipo, c, c.pal, 0, 0, 0, -1, "suelta");
-  else if (tipo === "pocion" || tipo === "naipes") arma(d, tipo, c, c.pal, 13, 18, 0, -1, "guardia");
-  else if (tipo === "baculo") arma(d, tipo, c, c.pal, 9, 14, 1, 0, "ataque");
-  else { const L = LARGO[tipo] || 10; arma(d, tipo, c, c.pal, 14 - Math.round(L / 2), 14, 1, 0, "ataque"); }
-  sueltas.set(key, cv); return cv;
-}
-/* Otro tono, para cuando los dos rivales eligieron el mismo personaje. */
-function tono(hex) {
-  const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;   // solo #rrggbb
-  return `rgb(${b},${r},${g})`;
-}
+/* Cada personaje: los datos de siempre (nombre, clase, frase) + su diseño en tres cuartos. */
+const T = CLASICOS.map(({ id, nombre, clase, desc, frase }) => ({ id, nombre, clase, desc, frase, hd: HD_POR_ID[id] }))
 
 /* ======================= ESCENARIO ======================= */
-const W = 112, SUELO = 62, Y0 = SUELO - (OY + 29);
+const W = 112, SUELO = 62, YB = SUELO - (HD_OY + 39);
 /* Selva del árbol gigante (inspirada en la portada de Secret of Mana). Se pinta una vez
    en un lienzo aparte; en cada cuadro solo se copia y se agregan los ibis que vuelan. */
 let FONDO = null;
@@ -1031,233 +94,143 @@ function chispa(g, x, y, f, col = "#FBBF24") {
   for (let i = 1; i <= d; i++) [[-i, -i], [i, -i], [-i, i], [i, i]].forEach(([a, b]) => g.fillRect(x + a, y + b, 1, 1));
   g.fillStyle = "#FFF7D6"; g.fillRect(x - 1, y - 1, 3, 3);
 }
-/* Disparos: flecha, orbe, luz o puño cohete. sentido = 1 hacia la derecha, -1 hacia la izquierda. */
-function disparo(g, c, x, y, sentido) {
-  x = Math.round(x); y = Math.round(y);
-  if (c.arma === "arco") { g.fillStyle = K; g.fillRect(Math.min(x, x - 8 * sentido) - 1, y - 1, 11, 3); g.fillStyle = "#C9A26B"; g.fillRect(Math.min(x, x - 8 * sentido), y, 9, 1);
-    g.fillStyle = ACERO; g.fillRect(x, y, 1, 1); g.fillStyle = "#E8ECF5"; g.fillRect(x - 8 * sentido, y - 1, 1, 3); }
-  else if (c.arma === "cuchillas") {
-    const gira = Math.floor(x / 3) % 2 === 0;
-    [[0, -3], [5, 0], [10, 3]].forEach(([atras, dy], i) => {
-      const kx = x - sentido * atras, ky = y + dy, g2 = i % 2 ? !gira : gira;
-      if (g2) { g.fillStyle = K; g.fillRect(kx - 3, ky - 1, 7, 3); g.fillStyle = "#DCE3EE"; g.fillRect(kx - 2 * sentido - (sentido < 0 ? 0 : 0), ky, 4, 1);
-        g.fillStyle = "#FFFFFF"; g.fillRect(kx + sentido * 2, ky, 1, 1); g.fillStyle = "#6B4430"; g.fillRect(kx - sentido * 3, ky, 1, 1); }
-      else { g.fillStyle = K; g.fillRect(kx - 1, ky - 3, 3, 7); g.fillStyle = "#DCE3EE"; g.fillRect(kx, ky - 2, 1, 4); g.fillStyle = "#6B4430"; g.fillRect(kx, ky + 2, 1, 1); }
-    });
-  }
-  else if (c.arma === "naipes") {
-    const carta = (cx, cy, gira) => { const [w, h] = gira ? [5, 3] : [3, 5];
-      g.fillStyle = K; g.fillRect(cx - 1, cy - 1, w + 2, h + 2); g.fillStyle = "#F8F5EE"; g.fillRect(cx, cy, w, h); g.fillStyle = "#D7263D"; g.fillRect(cx + (w >> 1), cy + (h >> 1), 1, 1); };
-    const gira = Math.floor(x / 3) % 2 === 0;
-    carta(x - 2, y - 2, gira); carta(x - sentido * 7 - 2, y + 2, !gira);
-  }
-  else if (c.arma === "pocion") {
-    g.fillStyle = K; g.fillRect(x - 2, y - 2, 5, 6); g.fillStyle = "#4ADE80"; g.fillRect(x - 1, y, 3, 3);
-    g.fillStyle = "#D9E8E0"; g.fillRect(x, y - 1, 1, 1); g.fillStyle = "#8A5A2A"; g.fillRect(x, y - 2, 1, 1);
-    g.fillStyle = "#86EFAC"; g.fillRect(x - sentido * 4, y - 1, 1, 1); g.fillRect(x - sentido * 7, y, 1, 1);
-  }
-  else if (c.arma === "laud") {
-    // dos notas musicales que viajan juntas
-    const nota = (nx, ny, col) => { g.fillStyle = K; g.fillRect(nx - 1, ny - 6, 5, 9); g.fillStyle = col; g.fillRect(nx, ny, 2, 2); g.fillRect(nx + 1, ny - 5, 1, 6); g.fillRect(nx + 2, ny - 5, 1, 2); };
-    nota(x - 1, y + 2, "#FBBF24"); nota(x - sentido * 6 - 1, y - 1, "#F472B6");
-  }
-  else if (c.arma === "baculo") { g.fillStyle = c.orbe; for (let i = 1; i <= 3; i++) g.fillRect(x - sentido * i * 3, y, 1, 1);
-    g.fillStyle = K; g.fillRect(x - 2, y - 2, 5, 5); g.fillStyle = c.orbe; g.fillRect(x - 1, y - 1, 3, 3); g.fillStyle = "#FFFFFF"; g.fillRect(x, y, 1, 1); }
-  else if (c.arma === "cohete") { g.fillStyle = "#F97316"; g.fillRect(x - sentido * 5, y, 3, 1); g.fillStyle = "#FBBF24"; g.fillRect(x - sentido * 4, y - 1, 1, 3);
-    g.fillStyle = K; g.fillRect(x - 2, y - 2, 5, 5); g.fillStyle = c.pal.M; g.fillRect(x - 1, y - 1, 3, 3); g.fillStyle = "#FFFFFF"; g.fillRect(x, y - 1, 1, 1); }
-}
-/* Nube de humo verde de la poción al estallar (f = 0..3). */
-function humo(g, x, y, f) {
-  const r = [3, 5, 7, 8][f] ?? 0; if (!r) return;
-  const cols = ["#4ADE80", "#86EFAC", "#9CA3AF", "#6B7280"];
-  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-    const d = (dx * dx) / (r * r) + (dy * dy) / ((r * 0.8) ** 2);
-    if (d > 1 || (f === 3 && (dx + dy) % 2)) continue;
-    g.fillStyle = cols[(Math.abs(dx * 7 + dy * 3) + (d > 0.6 ? 2 : 0)) % 4];
-    g.fillRect(x + dx, y + dy - f, 1, 1);
-  }
-}
-/* Enredaderas: salen del suelo junto a Agattita y avanzan ondulando hasta (x1, yTop),
-   con espinas, zarcillos enroscados y la punta en espiral. prog = cuánto han crecido (0..1). */
-function ramas(g, x0, x1, prog, sentido, yTop) {
-  const OLIVA = "#6B7A3A", MUSGO = "#8A9A4E", OSCURO = "#3F4A22";
-  const punto = (t, fase, amp) => [x0 + (x1 - x0) * t, SUELO + (yTop - SUELO) * Math.sin(t * Math.PI / 2) + Math.sin(t * Math.PI * 3 + fase) * amp * Math.sin(t * Math.PI) - Math.sin(t * Math.PI) * 10];
-  const tallo = (fase, amp, grueso, hasta) => {
-    const pts = []; for (let i = 0; i <= 60 * hasta; i++) pts.push(punto(i / 60, fase, amp).map(Math.round));
-    pts.forEach(([x, y]) => { g.fillStyle = K; g.fillRect(x - 1, y - 1, grueso + 2, grueso + 2); });
-    pts.forEach(([x, y], i) => { g.fillStyle = i % 5 === 0 ? MUSGO : OLIVA; g.fillRect(x, y, grueso, grueso); });
-    pts.forEach(([x, y], i) => { if (i % 6 === 3) { g.fillStyle = OSCURO; g.fillRect(x + (i % 12 ? -1 : grueso), y - 1, 1, 1); } });   // espinas
-    return pts;
-  };
-  const curl = (cx, cy, r, gira) => {          // zarcillo enroscado
-    for (let k = 0; k <= 20; k++) { const an = gira * k / 20 * Math.PI * 1.6; const rr = r * (1 - k / 28);
-      const x = Math.round(cx + Math.cos(an) * rr * sentido), y = Math.round(cy + Math.sin(an) * rr);
-      g.fillStyle = K; g.fillRect(x - 1, y - 1, 3, 3); }
-    for (let k = 0; k <= 20; k++) { const an = gira * k / 20 * Math.PI * 1.6; const rr = r * (1 - k / 28);
-      g.fillStyle = OLIVA; g.fillRect(Math.round(cx + Math.cos(an) * rr * sentido), Math.round(cy + Math.sin(an) * rr), 1, 1); }
-  };
-  if (prog <= 0) return;
-  tallo(2.2, 3, 1, Math.min(1, prog * 0.85));                // enredadera fina, por detrás
-  const pts = tallo(0, 5, 2, prog);                          // la principal
-  if (prog > 0.4) { const [x, y] = pts[Math.round(pts.length * 0.4)]; curl(x, y - 4, 3, 1); }
-  if (prog > 0.7) { const [x, y] = pts[Math.round(pts.length * 0.68)]; curl(x + sentido * 2, y + 4, 2.5, -1); }
-  const [tx, ty] = pts[pts.length - 1]; curl(tx + sentido * 2, ty - 2, 3, 1);   // punta en espiral
-  g.fillStyle = "#5E4029"; g.fillRect(Math.round(x0) - 2, SUELO, 2, 1); g.fillRect(Math.round(x0) + 2, SUELO, 2, 1);
-}
-/* Rayo de Edith: zigzag que parpadea desde la punta del báculo hasta (x1, y1). */
-function rayo(g, x0, ry0, x1, ry1, prog, t) {
-  const xe = x0 + (x1 - x0) * prog, ye = ry0 + (ry1 - ry0) * prog;
-  let semilla = Math.floor(t / 70) * 13 + 7; const rnd = () => (semilla = (semilla * 16807) % 2147483647) / 2147483647;
-  const pts = [[x0, ry0]];
-  for (let i = 1; i < 7; i++) pts.push([x0 + (xe - x0) * i / 7, ry0 + (ye - ry0) * i / 7 + (rnd() * 2 - 1) * 4]);
-  pts.push([xe, ye]);
-  for (let i = 0; i < pts.length - 1; i++) line(...pts[i], ...pts[i + 1], (x, y) => { g.fillStyle = "#7C3AED"; g.fillRect(x - 1, y - 1, 3, 3); });
-  for (let i = 0; i < pts.length - 1; i++) line(...pts[i], ...pts[i + 1], (x, y) => { g.fillStyle = "#F5F3FF"; g.fillRect(x, y, 1, 1); });
-}
-/* Nube de transformación (Xitin ↔ oso), f = 0..3. */
-function puf(g, x, y, f) {
-  const r = [4, 7, 9, 7][f] ?? 0; if (!r) return;
-  const cols = ["#FFFFFF", "#E5E7EB", "#C9CED8"];
-  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-    const d = (dx * dx + dy * dy) / (r * r); if (d > 1 || (f === 3 && (dx + dy) % 2)) continue;
-    g.fillStyle = cols[(Math.abs(dx * 5 + dy * 3) + (d > 0.55 ? 1 : 0)) % 3]; g.fillRect(x + dx, y + dy, 1, 1);
-  }
-}
-/* ¿Hay transformación ahora? Devuelve el cuadro (0..3) o -1. */
-const cambio = (Tm, momentos, paso = 90) => { for (const m of momentos) if (Tm >= m && Tm < m + 4 * paso) return Math.floor((Tm - m) / paso); return -1; };
-/* Arañazo del oso: tres rayas claras en el aire, f = 0..3. */
-function zarpazo(g, x, y, f) {
-  const largo = [5, 9, 12, 12][f] ?? 0; if (!largo) return;
-  for (let i = 0; i < 3; i++) { const x0 = x - 5 + i * 3, y0r = y - 8;
-    line(x0, y0r, x0 + Math.round(largo * 0.5), y0r + largo, (a, b) => { g.fillStyle = "#FDE68A"; g.fillRect(a - 1, b, 1, 1); g.fillStyle = f === 3 ? "#E5E7EB" : "#FFFFFF"; g.fillRect(a, b, 1, 1); }); }
-}
-function poner(g, spr, x, y, espejo) {
-  g.save();
-  if (espejo) { g.translate(x + SW, y); g.scale(-1, 1); g.drawImage(spr, 0, 0); } else g.drawImage(spr, x, y);
-  g.restore();
-}
+
 const lerp = (a, b, k) => a + (b - a) * Math.max(0, Math.min(1, k));
 const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-const BASE = 2;
 
-/* Cuánto avanza cada uno para chocar en el centro (o disparar desde cerca). */
-function alcance(c, objetivo) {
-  if (DISPARA[c.arma]) return 4;
-  return objetivo - BASE - OX - punta(c)[0];
+/* Dibuja un personaje (y sus efectos) en su lugar. espejo: mira a la izquierda (el rival). */
+function figura(g, c, p, x, dy, espejo) {
+  g.save();
+  if (espejo) { g.translate(W, 0); g.scale(-1, 1); }
+  hdDibujar(g, x, YB + dy, c, p);
+  if (c.proyectil) c.proyectil(g, x, YB + dy, p);
+  g.restore();
 }
+const centroX = (x, espejo) => (espejo ? W - (x + HD_OX + 15) : x + HD_OX + 15);
 
+/* Cuánto avanza al atacar para que el golpe llegue al rival (los que disparan casi no avanzan). */
+const avance = (c) => Math.max(0, 76 - ((c.choque && c.choque[0]) || 50));
+function paso(c, tt) {
+  const d = avance(c);
+  if (tt < 500 || tt >= 1700) return 0;
+  if (tt < 760) return d * 0.6 * ((tt - 500) / 260);
+  if (tt < 900) return d * (0.6 + 0.4 * ((tt - 760) / 140));
+  if (tt < 1400) return d;
+  return d * (1 - (tt - 1400) / 300);
+}
+const poseAtaque = (c, tt, t) => (tt >= 0 && tt < 1700 && !reduce ? hdPose(c, "ataque", tt) : hdPose(c, "guardia", t));
+
+/* Duelo: primero ataca uno y después el otro; nadie gana todavía. */
 function escenaDuelo(g, t, yo, rival, { conFondo = true, dy = 0, dx = 0 } = {}) {
-  const y0 = Y0 + dy;
-  const Tm = t % 3600, alt = yo.id === rival.id;
-  const seg = (a, b) => (Tm - a) / (b - a);
-  const Da = Math.max(4, alcance(yo, W / 2) - dx), Db = Math.max(4, alcance(rival, W / 2) - dx);
-  let k = 0, pose = "guardia", f = -1, shake = false, vuelo = -1;
-  if (Tm < 700) k = 0;
-  else if (Tm < 950) { k = seg(700, 950); pose = "ataque"; vuelo = k; }
-  else if (Tm < 1250) { k = 1; pose = "ataque"; f = Math.floor(seg(950, 1250) * 4); shake = Tm < 1100; }
-  else if (Tm < 1500) k = lerp(1, 0.3, seg(1250, 1500));
-  else if (Tm < 1750) { k = lerp(0.3, 1, seg(1500, 1750)); pose = "ataque"; vuelo = seg(1500, 1750); }
-  else if (Tm < 2050) { k = 1; pose = "ataque"; f = Math.floor(seg(1750, 2050) * 4); shake = Tm < 1900; }
-  else if (Tm < 2400) k = lerp(1, 0, seg(2050, 2400));
-  if (reduce) { k = 1; pose = "ataque"; f = 2; shake = false; vuelo = -1; }
-  const bob = pose === "guardia" && Math.floor(Tm / 350) % 2 ? 1 : 0;
+  const Tm = t % 3400, tA = Tm, tB = Tm - 1500;
+  const golpe = (tt) => tt >= 900 && tt < 1050;
+  const shake = !reduce && (golpe(tA) || golpe(tB));
   g.save(); g.translate(shake ? (Math.floor(Tm / 40) % 2 ? 1 : -1) : 0, 0); if (conFondo) fondo(g);
-  const xa = Math.round(BASE + dx + Da * k), xb = Math.round(W - BASE - dx - SW - Db * k);
-  sombra(g, xa + OX + 10, dy); sombra(g, xb + SW - OX - 10, dy);
-  const sinA = yo.arma === "cohete" && (vuelo >= 0 || f >= 0), sinB = rival.arma === "cohete" && (vuelo >= 0 || f >= 0);
-  /* Xitin: se transforma en oso antes del primer ataque y vuelve a ser ella al final. */
-  const forma = (c) => (c.oso && f >= 0 ? "zarpa" : c.oso && pose !== "ataque" && Tm >= 580 && Tm < 2230 ? "osoGuardia" : pose);
-  /* Los bajitos (Uzu) se lanzan de un salto y aterrizan en el golpe. */
-  const salto = (c) => (c.salta && vuelo >= 0 && !reduce ? -Math.round(Math.sin(Math.PI * vuelo) * 12) : 0);
-  poner(g, sprite(yo, forma(yo), { sinMano: sinA }), xa, y0 + bob + salto(yo), false);
-  poner(g, sprite(rival, forma(rival), { alt, sinMano: sinB }), xb, y0 + bob + salto(rival), true);
-  if (!reduce) {
-    const fp = cambio(Tm, [400, 2050]);
-    if (fp >= 0 && yo.oso) puf(g, xa + OX + 10, y0 + OY + 15, fp);
-    if (fp >= 0 && rival.oso) puf(g, xb + SW - OX - 10, y0 + OY + 15, fp);
-  }
-  const [px, py] = punta(yo), [qx, qy] = punta(rival);
-  if (vuelo >= 0) {
-    const arco = (c) => (c.arma === "pocion" ? Math.sin(Math.PI * vuelo) * 14 : 0);
-    if (DISPARA[yo.arma] && !yo.raices && !yo.rayo) disparo(g, yo, lerp(xa + OX + px, W / 2 - 1, vuelo), y0 + OY + py - arco(yo), 1);
-    if (DISPARA[rival.arma] && !rival.raices && !rival.rayo) disparo(g, rival, lerp(xb + SW - 1 - OX - qx, W / 2 + 1, vuelo), y0 + OY + qy - arco(rival), -1);
-  }
-  const brota = f >= 0 ? 1 : vuelo;
-  if (brota >= 0 && yo.raices) ramas(g, xa + OX + 16, W / 2, brota, 1, y0 + OY + py);
-  if (brota >= 0 && yo.rayo) rayo(g, xa + OX + px, y0 + OY + py, W / 2, y0 + OY + py, brota, Tm);
-  if (brota >= 0 && rival.rayo) rayo(g, xb + SW - 1 - OX - qx, y0 + OY + qy, W / 2, y0 + OY + qy, brota, Tm);
-  if (brota >= 0 && rival.raices) ramas(g, xb + SW - 1 - OX - 16, W / 2, brota, -1, y0 + OY + qy);
-  if (f >= 0 && (yo.oso || rival.oso)) zarpazo(g, W / 2, y0 + OY + py, f);
-  if (f >= 0 && (yo.arma === "pocion" || rival.arma === "pocion")) humo(g, W / 2, y0 + OY + py, f);
-  if (f >= 0) chispa(g, W / 2, y0 + OY + py, f, yo.orbe || rival.orbe || "#FBBF24");
-  if ((yo.arma === "naipes" || rival.arma === "naipes") && f >= 1) chispa(g, W / 2 + 1, y0 + OY + py + 5, f - 1);   // el segundo cuchillo
+  const xa = 2 + dx + paso(yo.hd, tA), xb = 2 + dx + paso(rival.hd, tB);
+  sombra(g, centroX(xa, false), dy); sombra(g, centroX(xb, true), dy);
+  figura(g, rival.hd, poseAtaque(rival.hd, tB, t + 300), xb, dy, true);
+  figura(g, yo.hd, poseAtaque(yo.hd, tA, t), xa, dy, false);
   g.restore();
 }
 
-/* Ganar = desarmar. El arma del rival sale volando y queda clavada atrás;
-   el rival se queda de pie, con las manos arriba. Nadie cae ni se lastima. */
-function escenaGana(g, Tm, yo, rival, { conFondo = true, dy = 0, dx = 0 } = {}) {
-  const y0 = Y0 + dy;
-  if (reduce) Tm = 2600;
-  const alt = yo.id === rival.id, seg = (a, b) => (Tm - a) / (b - a);
-  const rx = W - BASE - dx - SW;
-  const espejoX = (bx) => rx + SW - 1 - OX - bx;            // columna del cuerpo → x en escena (el rival mira a la izquierda)
-  const [mx, my] = POSE.guardia.mano;
-  const manoR = [espejoX(mx), y0 + OY + my];                 // donde el rival tiene el arma
-  const objetivo = manoR[0] - 1;
-  const D = Math.max(4, alcance(yo, objetivo) - dx), [px, py] = punta(yo);
-  let k = 0, pose = "guardia", rPose = "guardia", f = -1, shake = false, vuelo = -1, vuela = -1;
-  if (Tm < 600) {}
-  else if (Tm < 850) { k = seg(600, 850); pose = "ataque"; vuelo = k; }
-  else if (Tm < 1050) { k = 1; pose = "ataque"; f = Math.floor(seg(850, 1050) * 4); shake = true; }
-  else if (Tm < 1500) { k = 1; pose = "ataque"; rPose = "rendido"; vuela = seg(1050, 1650); }
-  else if (Tm < 1900) { k = lerp(1, 0, seg(1500, 1900)); rPose = "rendido"; vuela = seg(1050, 1650); }
-  else { pose = "alzada"; rPose = "rendido"; vuela = 1; }
-  const bob = Tm >= 1900 && Math.floor(Tm / 300) % 2 ? 1 : 0;
+/* El rival sin arma, con las manos arriba. */
+function rendido(c, conHombrera) {
+  const [sx, sy] = c.hombro;
+  const r = { ...c, arma: undefined, armaDetras: undefined, proyectil: undefined, forma: undefined, manos: { ...c.manos, guardia: [sx + 3, sy - 8] }, codos: undefined, codoDinamico: undefined, manoDinamica: undefined };
+  if (c.brazoCerca) r.brazoCerca = { ...c.brazoCerca, poses: {}, todas: [[-3, -8], [-4, -3]], encima: false };
+  if (conHombrera) r.arma = (px) => hombreraOso(px, 5, 15);
+  return r;
+}
+/* El arma del rival dibujada suelta, centrada en (x, y) y girada en cuartos de vuelta (así el pixel art sigue nítido). */
+const armasSueltas = new Map()
+function armaSuelta(g, id, x, y, cuartos = 0) {
+  const base = HD_BASE_POR_ID[id]; if (!base) return;
+  if (!armasSueltas.has(id)) {
+    const c = document.createElement("canvas"); c.width = c.height = 56; const cg = c.getContext("2d");
+    const px = (a, b, col) => { cg.fillStyle = col; cg.fillRect(28 + a, 34 + b, 1, 1); };
+    const p = { mano: [0, 0], fase: "guardia", t: 0, k: 0 };
+    if (base.arma) base.arma(px, p); else if (base.armaDetras) base.armaDetras(px, { ...p, fase: "suelta" });
+    armasSueltas.set(id, c);
+  }
+  g.save(); g.imageSmoothingEnabled = false; g.translate(Math.round(x), Math.round(y)); g.rotate((cuartos % 4) * Math.PI / 2); g.drawImage(armasSueltas.get(id), -28, -28); g.restore();
+}
+const sudor = (g, cx, cy, conExclamacion) => {
+  g.fillStyle = K; g.fillRect(cx - 1, cy, 3, 4); g.fillStyle = "#7DD3FC"; g.fillRect(cx, cy + 1, 1, 2);
+  if (conExclamacion) { g.fillStyle = K; g.fillRect(cx + 3, cy - 10, 3, 8); g.fillStyle = "#FBBF24"; g.fillRect(cx + 4, cy - 9, 1, 4); g.fillRect(cx + 4, cy - 4, 1, 1); }
+};
+const pufVerde = (g, cx, cy, k) => {
+  const r = 3 + Math.sin(Math.PI * Math.min(1, k)) * 10;
+  for (let dy = -12; dy <= 12; dy++) for (let dx = -12; dx <= 12; dx++) { const d = Math.hypot(dx, dy * 1.1); if (d < r) { g.fillStyle = d < r * 0.5 ? "rgba(220,252,231,.9)" : "rgba(74,222,128,.85)"; g.fillRect(cx + dx, cy + dy, 1, 1); } }
+};
+
+/* Ganar: un solo ataque y después el ganador celebra. Cada uno vence a su manera. */
+function escenaGana(g, t, yo, rival, { conFondo = true, dy = 0, dx = 0 } = {}) {
+  const Tm = reduce ? 3000 : t < 6000 ? t : 3400 + (t % 2600);   // tras la primera vez, solo se repite la celebración
+  const tA = Math.min(Tm, 1699), golpeado = Tm >= 900;
+  const shake = !reduce && Tm >= 900 && Tm < 1050;
   g.save(); g.translate(shake ? (Math.floor(Tm / 40) % 2 ? 1 : -1) : 0, 0); if (conFondo) fondo(g);
-  const xa = Math.round(BASE + dx + D * k);
-  sombra(g, xa + OX + 10, dy); sombra(g, rx + SW - OX - 10, dy);
-  /* Xitin no tiene arma que perder: pierde la transformación. Llega como oso y, al recibir el golpe, vuelve a ser ella. */
-  poner(g, sprite(rival, rival.oso && rPose === "guardia" ? "osoGuardia" : rPose, { alt }), rx, y0, true);
-  if (rival.oso && !reduce) { const fp = cambio(Tm, [1050]); if (fp >= 0) puf(g, rx + SW - OX - 10, y0 + OY + 15, fp); }
-  if (rPose === "rendido") {
-    // gota de sudor y, al principio, un «!»
-    const cx = espejoX(7), cy = y0 + OY + 3;
-    g.fillStyle = K; g.fillRect(cx - 1, cy, 3, 4); g.fillStyle = "#7DD3FC"; g.fillRect(cx, cy + 1, 1, 2);
-    if (Tm < 1700) { const ex = espejoX(11), ey = y0 + OY - 9; g.fillStyle = K; g.fillRect(ex - 1, ey - 1, 3, 8); g.fillStyle = "#FBBF24"; g.fillRect(ex, ey, 1, 4); g.fillRect(ex, ey + 5, 1, 1); }
-    // el arma (o las dos) vuela en arco y queda clavada detrás
-    if (TIENE_ARMA(rival)) {
-      const piezas = [0];
-      piezas.forEach((i) => {
-        const q = Math.max(0, Math.min(1, vuela - i * 0.12));
-        const fx = Math.min(W - 8, manoR[0] + 18 + i * 6), fy = SUELO - 4 + dy;
-        const x = lerp(manoR[0], fx, q), y = lerp(manoR[1], fy, q) - Math.sin(Math.PI * q) * 22;
-        const giro = q < 1 ? q * Math.PI * 4 : Math.PI * 0.62;  // gira en el aire; al final, clavada en diagonal
-        g.save(); g.translate(Math.round(x), Math.round(y)); g.rotate(giro); g.drawImage(armaSuelta(rival), -14, -14); g.restore();
-      });
+  const xb = 2 + dx, xa = 2 + dx + paso(yo.hd, tA);
+  const cR = centroX(xb, true), cabezaY = YB + dy + HD_OY;
+  const quien = yo.id;
+
+  /* --- el rival --- */
+  if (!golpeado) { sombra(g, cR, dy); figura(g, rival.hd, hdPose(rival.hd, "guardia", t), xb, dy, true); }
+  else if (quien === "malala") {   // ¡sapo!
+    if (Tm < 1150) { figura(g, rival.hd, hdPose(rival.hd, "guardia", t), xb, dy, true); pufVerde(g, cR, cabezaY + 18, (Tm - 900) / 250); }
+    else { sombra(g, cR, dy); sapoMalala(g, cR - 5, SUELO + dy - 8, t); if (Tm < 1400) pufVerde(g, cR, cabezaY + 22, 0.5 + (Tm - 1150) / 500); }
+  } else if (quien === "xitin") {   // el oso ruge y el rival huye corriendo
+    const huye = Math.max(0, (Tm - 1500) / 900);
+    if (huye <= 0) { sombra(g, cR, dy); figura(g, rendido(rival.hd, rival.id === "xitin"), hdPose(rival.hd, "guardia", t), xb, dy, true); sudor(g, cR - 6, cabezaY + 2, true); }
+    else if (huye < 1) {
+      const xr = W - (xb + HD_OX + 30) + huye * 60;   // da media vuelta (mira a la derecha) y corre
+      figura(g, rival.hd, hdPose(rival.hd, "ataque", 820), xr, dy, false);
+      sudor(g, xr + HD_OX + 22, cabezaY + 2, false);
+      g.fillStyle = "rgba(214,207,192,.85)";
+      [[-4, 0, 3], [-10, 1, 2]].forEach(([ox, oy, r]) => { for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) if (a * a + b * b <= r * r) g.fillRect(Math.round(xr + HD_OX + 8 + ox + a), SUELO + dy - 2 + oy + b, 1, 1); });
+    }
+  } else if (quien === "jelic") {   // queda viendo estrellas
+    const vaiven = Math.round(Math.sin(t / 260) * 2);
+    sombra(g, cR + vaiven, dy); figura(g, rival.hd, hdPose(rival.hd, "guardia", 0), xb - vaiven, dy, true);
+    pajaritos(g, cR + vaiven, cabezaY - 2, t);
+  } else if (quien === "agattita") {   // atrapado por enredaderas y con flor
+    sombra(g, cR, dy); figura(g, rival.hd, hdPose(rival.hd, "guardia", 0), xb, dy, true);
+    enredaRival(g, cR, cabezaY + 14, SUELO + dy - 1, Math.min(1, (Tm - 900) / 600));
+    if (Tm > 1500) florCabeza(g, cR, cabezaY - 4);
+  } else {   // desarmado: el arma vuela (o la flecha de Janet se la lleva al borde)
+    sombra(g, cR, dy);
+    const janet = quien === "janet", xitinR = rival.id === "xitin";
+    figura(g, rendido(rival.hd, xitinR && !janet), hdPose(rival.hd, "guardia", t), xb, dy, true);
+    sudor(g, cR - 6, cabezaY + 2, Tm < 1700);
+    const [hx, hy] = rival.hd.manos.guardia, manoX = W - (xb + HD_OX + hx), manoY = YB + dy + HD_OY + hy;
+    const q = Math.min(1, (Tm - 900) / 500);
+    if (janet) {   // la flecha atraviesa el arma (o la hombrera de oso) y la clava en el borde derecho, arriba del rival
+      const ax = lerp(manoX, W - 9, q), ay = lerp(manoY - 6, cabezaY - 6, q);
+      if (xitinR) hombreraOso((a, b, col) => { g.fillStyle = col; g.fillRect(Math.round(ax - 3 + a), Math.round(ay - 3 + b), 1, 1); }, 0, 0);
+      else armaSuelta(g, rival.id, ax, ay);
+      flechaJanet(g, Math.round(ax - 10), Math.round(ay), 18);
+      if (q >= 1) { g.fillStyle = "#3E2A1A"; g.fillRect(W - 1, ay - 8, 1, 16); }
+    } else if (!xitinR) {   // gira en el aire y queda tirada en el suelo, detrás del rival
+      const fx = W - 6, fy = SUELO + dy - 3;
+      const ax = lerp(manoX, fx, q), ay = lerp(manoY, fy, q) - Math.sin(Math.PI * q) * 20;
+      armaSuelta(g, rival.id, ax, ay, q < 1 ? Math.floor(q * 6) : 1);
     }
   }
-  const formaYo = yo.oso && f >= 0 ? "zarpa" : yo.oso && pose !== "ataque" && Tm >= 430 && Tm < 1680 ? "osoGuardia" : pose;
-  const saltoYo = yo.salta && vuelo >= 0 && !reduce ? -Math.round(Math.sin(Math.PI * vuelo) * 12) : 0;
-  poner(g, sprite(yo, formaYo, { sinMano: yo.arma === "cohete" && vuelo >= 0 }), xa, y0 - bob + saltoYo, false);
-  if (yo.oso && !reduce) { const fp = cambio(Tm, [250, 1500]); if (fp >= 0) puf(g, xa + OX + 10, y0 + OY + 15, fp); }
-  if (yo.oso && f >= 0) zarpazo(g, objetivo, y0 + OY + py, f);
-  if (yo.raices && (vuelo >= 0 || f >= 0)) ramas(g, xa + OX + 16, objetivo, f >= 0 ? 1 : vuelo, 1, y0 + OY + py);
-  if (yo.rayo && (vuelo >= 0 || f >= 0)) rayo(g, xa + OX + px, y0 + OY + py, objetivo, y0 + OY + py, f >= 0 ? 1 : vuelo, Tm);
-  if (vuelo >= 0 && DISPARA[yo.arma] && !yo.raices && !yo.rayo) disparo(g, yo, lerp(xa + OX + px, objetivo, vuelo), y0 + OY + py - (yo.arma === "pocion" ? Math.sin(Math.PI * vuelo) * 14 : 0), 1);
-  if (f >= 0 && yo.arma === "pocion") humo(g, objetivo, y0 + OY + py, f);
-  if (f >= 0) chispa(g, objetivo, y0 + OY + py, f, yo.orbe || "#FBBF24");
-  if (yo.arma === "naipes" && f >= 1) chispa(g, objetivo + 1, y0 + OY + py + 5, f - 1);
-  if (Tm >= 1900) {
-    const s = Math.floor(Tm / 200) % 3; g.fillStyle = "#FBBF24";
-    [[xa + 12, y0 + 4], [xa + 26, y0 + 8], [xa + 6, y0 + 12]].forEach(([x, y], i) => { if (i !== s) { g.fillRect(x, y, 1, 3); g.fillRect(x - 1, y + 1, 3, 1); } });
+
+  /* --- el ganador: ataca una vez y después celebra --- */
+  if (quien === "xitin" && Tm >= 1400 && Tm < 2300) {   // sigue de oso mientras ruge
+    sombra(g, centroX(xa, false), dy);
+    figura(g, yo.hd, hdPose(yo.hd, "ataque", 1000), xa, dy, false);
+    g.fillStyle = "#FFFFFF";
+    [4, 7, 10].forEach((r) => { for (let a = -0.7; a <= 0.7; a += 0.12) g.fillRect(Math.round(xa + HD_OX + 30 + Math.cos(a) * r), Math.round(YB + dy + HD_OY + 6 + Math.sin(a) * r), 1, 1); });
+  } else {
+    const pYo = Tm >= 1700 ? hdPose(yo.hd, "victoria", Tm - 1700 + 400) : hdPose(yo.hd, "ataque", tA);
+    sombra(g, centroX(xa, false), dy); figura(g, yo.hd, pYo, xa, dy, false);
   }
   g.restore();
 }
 
-/* Modo equipos: dos contra dos. La pareja de atrás pelea un poco más arriba y
-   un poco desfasada; la de adelante, igual que en el duelo de uno contra uno. */
-const ATRAS = -8, ADENTRO = 16
+/* Modo equipos: dos contra dos. La pareja de atrás pelea un poco más arriba y desfasada. */
+const ATRAS = -8, ADENTRO = 14
 function escenaDuelo2(g, t, [a1, a2], [b1, b2]) {
   fondo(g)
   escenaDuelo(g, t + 220, a2, b2, { conFondo: false, dy: ATRAS, dx: ADENTRO })
@@ -1272,8 +245,6 @@ function escenaGana2(g, t, [a1, a2], [b1, b2]) {
 /* ======================= PODIO ======================= */
 const COLOR_PUESTO = [null, ["#FBBF24", "#FDE68A", "#B7791F"], ["#CBD5E1", "#F1F5F9", "#7C8594"], ["#D08A4E", "#F0B98A", "#8A5530"]];
 const DIGITO = { 1: [".#.", "##.", ".#.", ".#.", "###"], 2: ["##.", "..#", ".#.", "#..", "###"], 3: ["##.", "..#", ".#.", "..#", "##."] };
-
-/* Confeti que cae, con semilla fija para que cada pieza tenga su color y su ritmo. */
 function confeti(g, t) {
   const cols = ["#F472B6", "#FBBF24", "#60A5FA", "#4ADE80", "#F97316", "#FFFFFF"];
   for (let i = 0; i < 26; i++) {
@@ -1281,46 +252,54 @@ function confeti(g, t) {
     g.fillStyle = cols[i % cols.length]; g.fillRect(Math.round(x), Math.round(y), (i + Math.floor(t / 150)) % 2 ? 2 : 1, 1);
   }
 }
-
-/* Quien quedó en el podio: salta al salir su nombre, levanta el arma y cae confeti. */
+/* Quien quedó en el podio: celebra a su manera sobre su escalón y cae confeti. */
 function escenaPodio(g, t, c, puesto) {
-  const Tm = reduce ? 2000 : t % 4200;
+  const Tm = reduce ? 2000 : t;
   fondo(g);
-  const alto = [0, 17, 13, 10][puesto], [col, luz, sombra] = COLOR_PUESTO[puesto];
-  const bx = W / 2 - 14, by = SUELO + 4 - alto;
-  g.fillStyle = K; g.fillRect(bx - 1, by - 1, 30, alto + 2);
-  g.fillStyle = col; g.fillRect(bx, by, 28, alto); g.fillStyle = luz; g.fillRect(bx, by, 28, 2); g.fillStyle = sombra; g.fillRect(bx, by + alto - 2, 28, 2);
-  DIGITO[puesto].forEach((fila, y) => [...fila].forEach((k, x) => { if (k === "#") { g.fillStyle = K; g.fillRect(bx + 13 + x, by + Math.floor((alto - 5) / 2) + y, 1, 1); } }));
-  const salto = Tm > 300 && Tm < 800 ? Math.sin(Math.PI * (Tm - 300) / 500) * 12 : 0;
-  const pose = Tm < 300 ? "guardia" : "alzada";
-  const bob = Tm > 900 && Math.floor(Tm / 300) % 2 ? 1 : 0;
-  const x = Math.round(W / 2 - OX - 10), y = Math.round(by - OY - 30 - salto - bob);
+  const alto = [0, 17, 13, 10][puesto], [col, luz, sombraP] = COLOR_PUESTO[puesto];
+  const bx = W / 2 - 16, by = SUELO + 4 - alto;
+  g.fillStyle = K; g.fillRect(bx - 1, by - 1, 34, alto + 2);
+  g.fillStyle = col; g.fillRect(bx, by, 32, alto); g.fillStyle = luz; g.fillRect(bx, by, 32, 2); g.fillStyle = sombraP; g.fillRect(bx, by + alto - 2, 32, 2);
+  DIGITO[puesto].forEach((fila, y) => [...fila].forEach((k, x) => { if (k === "#") { g.fillStyle = K; g.fillRect(bx + 15 + x, by + Math.floor((alto - 5) / 2) + y, 1, 1); } }));
+  const x = Math.round(W / 2 - HD_OX - 15), y = by - (HD_OY + 39);
   g.fillStyle = "rgba(10,25,12,.45)"; g.fillRect(W / 2 - 7, by - 1, 14, 1);
-  poner(g, sprite(c, pose), x, y, false);
-  if (Tm > 300) {
-    confeti(g, t);
-    const s = Math.floor(Tm / 160) % 4; g.fillStyle = "#FDE68A";
-    [[x + 6, y + 6], [x + 30, y + 4], [x + 2, y + 18], [x + 34, y + 16]].forEach(([sx, sy], i) => { if (i !== s) { g.fillRect(sx, sy, 1, 3); g.fillRect(sx - 1, sy + 1, 3, 1); } });
-  }
+  const p = { ...hdPose(c.hd, "victoria", Tm), enPodio: true };
+  hdDibujar(g, x, y, c.hd, p);
+  if (c.hd.proyectil) c.hd.proyectil(g, x, y, p);
+  if (Tm > 400) confeti(g, t);
 }
-
 /* Quien no quedó en el podio: aplaude y da saltitos. */
 function escenaAplauso(g, t, c) {
   const Tm = reduce ? 0 : t;
   fondo(g);
-  const junta = Math.floor(Tm / 180) % 2 === 1;
-  const salto = Math.floor(Tm / 360) % 4 === 1 ? 2 : 0;
-  const x = Math.round(W / 2 - OX - 10), y = Y0 - salto;
+  const junta = Math.floor(Tm / 180) % 2 === 1, salto = Math.floor(Tm / 360) % 4 === 1 ? 2 : 0;
+  const hd = c.hd, [sx, sy] = hd.hombro;
+  const aplaude = { ...hd, arma: undefined, armaDetras: undefined, proyectil: undefined, forma: undefined, codos: undefined, codoDinamico: undefined, manoDinamica: undefined,
+    manos: { ...hd.manos, guardia: [sx + (junta ? 2 : 4), sy + 2] } };
+  if (hd.brazoCerca) { const [nx, ny] = hd.brazoCerca.hombro; aplaude.brazoCerca = { ...hd.brazoCerca, poses: {}, encima: false, todas: [[sx - nx + (junta ? 1 : -2), sy - ny + 3], [2, 6]] }; }
+  const x = Math.round(W / 2 - HD_OX - 15);
   sombra(g, W / 2);
-  poner(g, sprite(c, junta ? "aplauso2" : "aplauso1"), x, y, false);
-  if (junta) {   // rayitas del aplauso
-    const hx = x + OX + 17, hy = y + OY + 17; g.fillStyle = "#FFFFFF";
-    g.fillRect(hx + 3, hy - 3, 1, 2); g.fillRect(hx + 4, hy, 2, 1); g.fillRect(hx + 3, hy + 3, 1, 2); g.fillRect(hx - 1, hy - 4, 1, 2);
-  }
+  hdDibujar(g, x, YB - salto, aplaude, hdPose(aplaude, "guardia", Tm));
+  if (junta) { const hx = x + HD_OX + sx + 3, hy = YB - salto + HD_OY + sy; g.fillStyle = "#FFFFFF"; g.fillRect(hx + 3, hy - 3, 1, 2); g.fillRect(hx + 4, hy, 2, 1); g.fillRect(hx + 3, hy + 3, 1, 2); g.fillRect(hx - 1, hy - 4, 1, 2); }
 }
 
+/* Retrato en guardia para el selector: el personaje centrado por su contorno real. */
+const recuadros = new Map()
+function pintarRetrato(g, c, lado, t = 0) {
+  const tmp = document.createElement("canvas"); tmp.width = 80; tmp.height = 58;
+  const tg = tmp.getContext("2d"), y = 54 - (HD_OY + 39);
+  hdDibujar(tg, 4, y, c.hd, hdPose(c.hd, "guardia", t));
+  if (!recuadros.has(c.id)) {
+    const d = tg.getImageData(0, 0, 80, 58).data; let x0 = 80, y0 = 58, x1 = 0, y1 = 0;
+    for (let yy = 0; yy < 58; yy++) for (let xx = 0; xx < 80; xx++) if (d[(yy * 80 + xx) * 4 + 3]) { x0 = Math.min(x0, xx); x1 = Math.max(x1, xx); y0 = Math.min(y0, yy); y1 = Math.max(y1, yy) }
+    recuadros.set(c.id, { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
+  }
+  const r = recuadros.get(c.id), esc = Math.min(1, (lado - 2) / Math.max(r.w, r.h));
+  g.imageSmoothingEnabled = false;
+  g.drawImage(tmp, r.x, r.y, r.w, r.h, Math.round((lado - r.w * esc) / 2), Math.round((lado - r.h * esc) / 2), Math.round(r.w * esc), Math.round(r.h * esc));
+}
 
-export { T as HEROES, sprite, escenaDuelo, escenaGana, escenaDuelo2, escenaGana2, escenaPodio, escenaAplauso, OX, OY }
+export { T as HEROES, escenaDuelo, escenaGana, escenaDuelo2, escenaGana2, escenaPodio, escenaAplauso, pintarRetrato }
 export const heroOf = (id) => T.find((c) => c.id === id) || null
 /* Para quien todavía no eligió: uno fijo según su id, así no cambia entre pantallas. */
 export function heroFor(id, chosen) {
