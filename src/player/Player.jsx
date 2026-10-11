@@ -268,8 +268,8 @@ function PlayerRoomBody({ store, base, pid, meta, onLeave }) {
         <EndTabs review={state.review} history={score?.history}>
           {myTeam
             ? <TeamFinalPosition team={myTeam} place={myTeamPlace} total={teamRank[myTeamPlace - 1]?.total ?? 0}
-                mvp={mvpOf(players, scores)?.id === pid} />
-            : <FinalPosition score={score} />}
+                mvp={mvpOf(players, scores)?.id === pid} hero={me} />
+            : <FinalPosition score={score} hero={me} />}
         </EndTabs>
       )
       : (myTeam ? myTeamPlace : score?.rank) <= 3 && stage[['first', 'second', 'third'][(myTeam ? myTeamPlace : score.rank) - 1]]
@@ -356,15 +356,16 @@ function TeamLobby({ profile, pid, meta, teams, players, onPick }) {
 }
 
 /* El duelo del ranking dibujado con los personajes: si adelantaste a tu rival,
-   lo desarmas; si estás a tiro de alguien (o te adelantó), chocan. */
+   lo desarmas; si te adelantaron, ves la victoria del otro desde tu lado;
+   si estás a tiro de alguien, chocan. */
 function HeroDuelScene({ board, pid, me }) {
   const overtakes = board?.overtakes ? Object.values(board.overtakes) : []
   const passed = overtakes.find((o) => o.who.id === pid)
   const lost = overtakes.find((o) => o.over.id === pid)
   const duel = board?.personal?.[pid]
   if (passed) return <div className="mb-3"><HeroDuel me={me} rival={heroFor(passed.over.id, passed.over.hero)} won /></div>
+  if (lost) return <div className="mb-3"><HeroDuel me={me} rival={heroFor(lost.who.id, lost.who.hero)} lost /></div>
   if (duel) return <div className="mb-3"><HeroDuel me={me} rival={heroFor(duel.rival, duel.rivalHero)} /></div>
-  if (lost) return <div className="mb-3"><HeroDuel me={me} rival={heroFor(lost.who.id, lost.who.hero)} /></div>
   return null
 }
 
@@ -383,7 +384,7 @@ function HeroTeamDuelScene({ board, team, pid, me, players, round = 0 }) {
   if (!rivals.length) return null
   const mios = mates.length ? [me, heroDe(mates[round % mates.length])] : [me]
   const ellos = rivals.length > 1 ? [heroDe(rivals[round % rivals.length]), heroDe(rivals[(round + 1) % rivals.length])] : [heroDe(rivals[0])]
-  return <div className="mb-3"><HeroDuel me={mios} rival={ellos} won={Boolean(passed)} /></div>
+  return <div className="mb-3"><HeroDuel me={mios} rival={ellos} won={Boolean(passed)} lost={!passed && Boolean(lost)} /></div>
 }
 
 /* El duelo personal en el ranking (ver game/duels.js): adelantamientos de esta
@@ -413,7 +414,14 @@ function DuelNote({ board, id, team = false }) {
   )
 }
 
-function TeamFinalPosition({ team, place, total, mvp }) {
+/* Los tres primeros siguen viendo a su personaje celebrar en la pantalla final:
+   el 1.º aparece último en el proyector y, si no, alcanzaba a verlo solo 5 s. */
+function Celebra({ hero, place }) {
+  if (!hero || !place || place > 3) return null
+  return <div className="mt-4"><HeroPodium me={hero} place={place} /></div>
+}
+
+function TeamFinalPosition({ team, place, total, mvp, hero }) {
   const t = useT()
   useEffect(() => {
     if (!mvp && (!place || place > 3)) return
@@ -424,11 +432,12 @@ function TeamFinalPosition({ team, place, total, mvp }) {
     <Message emoji={medal} title={place ? `${team.emoji} ${team.name}: #${place}` : t('finDelJuego')}>
       {t('puntosEquipoFinal', total)} {place === 1 ? t('campeones') : t('bienEquipo')}
       {mvp && <span className="block mt-3 text-xl font-black text-amber-600">{t('eresMvp')}</span>}
+      <Celebra hero={hero} place={place} />
     </Message>
   )
 }
 
-function FinalPosition({ score }) {
+function FinalPosition({ score, hero }) {
   const t = useT()
   const rank = score?.rank
   useEffect(() => {
@@ -439,6 +448,7 @@ function FinalPosition({ score }) {
   return (
     <Message emoji={medal} title={rank ? t('posicionFinal', rank) : t('finDelJuego')}>
       {t('puntosFinal', score?.total ?? 0)} {rank === 1 ? t('eresCampeon') : t('bienHecho')}
+      <Celebra hero={hero} place={rank} />
     </Message>
   )
 }

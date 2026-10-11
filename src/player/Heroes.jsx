@@ -30,14 +30,16 @@ function Lienzo({ dibujar, ancho = 112, alto = 76, label, className }) {
 const ESCENA = 'w-full rounded-2xl border-4 border-slate-900'
 
 /* Duelo del ranking: chocan; si ganaste (adelantaste a tu rival), lo desarmas.
+   lost: te adelantaron, se ve la victoria del rival en espejo (tú sigues a la izquierda).
    me y rival son un personaje, o dos (modo equipos: dos contra dos). */
-export function HeroDuel({ me, rival, won }) {
+const espejo = (dibujar) => (g, t) => { g.save(); g.translate(g.canvas.width, 0); g.scale(-1, 1); dibujar(g, t); g.restore() }
+export function HeroDuel({ me, rival, won, lost }) {
   const a = [].concat(me), b = [].concat(rival)
   const dos = a.length > 1 && b.length > 1
   const clave = [...a, ...b].map((h) => h.id).join('|')
   const dibujar = useMemo(() => (dos
-    ? (won ? (g, t) => escenaGana2(g, t, a, b) : (g, t) => escenaDuelo2(g, t, a, b))
-    : (won ? (g, t) => escenaGana(g, t, a[0], b[0]) : (g, t) => escenaDuelo(g, t, a[0], b[0]))), [clave, dos, won])
+    ? (won ? (g, t) => escenaGana2(g, t, a, b) : lost ? espejo((g, t) => escenaGana2(g, t, b, a)) : (g, t) => escenaDuelo2(g, t, a, b))
+    : (won ? (g, t) => escenaGana(g, t, a[0], b[0]) : lost ? espejo((g, t) => escenaGana(g, t, b[0], a[0])) : (g, t) => escenaDuelo(g, t, a[0], b[0]))), [clave, dos, won, lost])
   return <Lienzo dibujar={dibujar} label={`${a.map((h) => h.nombre).join(' + ')} vs ${b.map((h) => h.nombre).join(' + ')}`} className={ESCENA} />
 }
 
